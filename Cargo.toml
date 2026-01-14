@@ -1,7 +1,13 @@
 [package]
 name = "musicfree"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+license = "MIT"
+description = "musicfree"
+repository = "https://github.com/ahaoboy/musicfree"
+homepage = "https://github.com/ahaoboy/musicfree"
+authors = ["ahaoboy"]
+
 
 [features]
 default = []
