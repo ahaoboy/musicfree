@@ -1,9 +1,9 @@
-mod common;
 mod android;
+mod common;
 #[cfg(feature = "ytdlp-ejs")]
 mod ejs;
 
-pub use common::{extract_video_id, is_youtube_url, AudioFormat, AudioInfo};
+pub use common::{AudioFormat, AudioInfo, extract_video_id, is_youtube_url};
 
 use crate::error::Result;
 
@@ -34,5 +34,3 @@ pub async fn get_audio_formats(url: &str) -> Result<(String, Vec<AudioFormat>)> 
     let video_id = extract_video_id(url)?;
     android::get_audio_formats_android(&video_id).await
 }
-
-

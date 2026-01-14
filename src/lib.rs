@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 pub mod bilibili;
+mod download;
 pub mod error;
 pub mod youtube;
-
 use error::{MusicFreeError, Result};
 
 /// Unified audio structure for download results

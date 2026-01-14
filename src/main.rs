@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
-use musicfree::{bilibili, detect_site, sanitize_filename, youtube, Site};
+use musicfree::{Site, bilibili, detect_site, sanitize_filename, youtube};
 
 fn print_usage() {
     eprintln!("Usage: musicfree <url>");

@@ -3,10 +3,10 @@ use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::download::{download_binary_with_headers, download_text_with_headers};
 use crate::error::{MusicFreeError, Result};
 
-pub const WEB_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+pub const WEB_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 pub const ANDROID_USER_AGENT: &str =
     "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip";
 pub const INNERTUBE_CLIENT_NAME: &str = "ANDROID";
@@ -62,8 +62,8 @@ pub fn extract_video_id(url: &str) -> Result<String> {
     }
 
     // youtu.be/VIDEO_ID
-    if url.contains("youtu.be/") {
-        if let Some(pos) = url.find("youtu.be/") {
+    if url.contains("youtu.be/")
+        && let Some(pos) = url.find("youtu.be/") {
             let id: String = url[pos + 9..]
                 .chars()
                 .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
@@ -73,7 +73,6 @@ pub fn extract_video_id(url: &str) -> Result<String> {
                 return Ok(id);
             }
         }
-    }
 
     Err(MusicFreeError::InvalidUrl(format!(
         "Cannot extract video ID from: {}",
@@ -88,7 +87,6 @@ pub fn is_youtube_url(url: &str) -> bool {
 
 /// Fetch video page HTML
 pub async fn fetch_video_page(video_id: &str) -> Result<String> {
-    let client = reqwest::Client::new();
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
 
     let mut headers = HeaderMap::new();
@@ -98,16 +96,7 @@ pub async fn fetch_video_page(video_id: &str) -> Result<String> {
         HeaderValue::from_static("CONSENT=YES+cb; SOCS=CAI"),
     );
 
-    let response = client.get(&url).headers(headers).send().await?;
-
-    if !response.status().is_success() {
-        return Err(MusicFreeError::YoutubeError(format!(
-            "Failed to fetch page: HTTP {}",
-            response.status()
-        )));
-    }
-
-    Ok(response.text().await?)
+    download_text_with_headers(&url, headers).await
 }
 
 /// Extract ytcfg configuration from HTML
@@ -160,23 +149,9 @@ pub fn get_video_title(player_response: &Value) -> String {
 
 /// Download audio data from URL
 pub async fn download_audio_data(url: &str) -> Result<Vec<u8>> {
-    let client = reqwest::Client::new();
-
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
     headers.insert("Range", HeaderValue::from_static("bytes=0-"));
 
-    let response = client.get(url).headers(headers).send().await?;
-
-    if !response.status().is_success() && response.status().as_u16() != 206 {
-        return Err(MusicFreeError::YoutubeError(format!(
-            "Download failed: HTTP {}",
-            response.status()
-        )));
-    }
-
-    let data = response.bytes().await?.to_vec();
-    Ok(data)
+    download_binary_with_headers(url, headers).await
 }
-
-

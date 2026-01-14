@@ -4,32 +4,22 @@ use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::Value;
 
+use crate::download::download_text_with_headers;
 use crate::error::{MusicFreeError, Result};
 
 use super::common::{
-    download_audio_data, extract_ytcfg_from_html, fetch_video_page, get_video_title, AudioFormat,
-    AudioInfo, WEB_USER_AGENT,
+    AudioFormat, AudioInfo, WEB_USER_AGENT, download_audio_data, extract_ytcfg_from_html,
+    fetch_video_page, get_video_title,
 };
 
 use ytdlp_ejs::{JsChallengeOutput, RuntimeType};
 
 /// Download player JS file
 async fn download_player_js(player_url: &str) -> Result<String> {
-    let client = reqwest::Client::new();
-
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_static(WEB_USER_AGENT));
 
-    let response = client.get(player_url).headers(headers).send().await?;
-
-    if !response.status().is_success() {
-        return Err(MusicFreeError::YoutubeError(format!(
-            "Failed to download player JS: HTTP {}",
-            response.status()
-        )));
-    }
-
-    Ok(response.text().await?)
+    download_text_with_headers(player_url, headers).await
 }
 
 /// Extract player response from HTML
@@ -251,5 +241,3 @@ pub async fn download_audio_ejs(video_id: &str) -> Result<AudioInfo> {
 
     Ok(AudioInfo { title, data })
 }
-
-

@@ -2,6 +2,7 @@ use reqwest::header::{HeaderMap, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::download::{download_binary_with_headers, download_json_with_headers};
 use crate::error::{MusicFreeError, Result};
 
 const USER_AGENT_VALUE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
@@ -42,14 +43,13 @@ pub fn is_bilibili_url(url: &str) -> bool {
 /// Download audio from Bilibili video
 pub async fn download_audio(url: &str) -> Result<AudioInfo> {
     let bvid = extract_bvid(url)?;
-    let client = reqwest::Client::new();
 
     // Get video info
     let api_url = format!(
         "https://api.bilibili.com/x/web-interface/view?bvid={}",
         bvid
     );
-    let resp: Value = client.get(&api_url).send().await?.json().await?;
+    let resp: Value = download_json_with_headers(&api_url, HeaderMap::new()).await?;
 
     let data = resp.get("data").ok_or(MusicFreeError::VideoNotFound)?;
 
@@ -64,7 +64,7 @@ pub async fn download_audio(url: &str) -> Result<AudioInfo> {
         "https://api.bilibili.com/x/player/playurl?bvid={}&cid={}&fnval=16",
         bvid, cid
     );
-    let play_resp: Value = client.get(&play_url).send().await?.json().await?;
+    let play_resp: Value = download_json_with_headers(&play_url, HeaderMap::new()).await?;
 
     // Extract audio URL
     let audio_url = play_resp["data"]["dash"]["audio"]
@@ -78,10 +78,7 @@ pub async fn download_audio(url: &str) -> Result<AudioInfo> {
     headers.insert(REFERER, "https://www.bilibili.com".parse()?);
     headers.insert(USER_AGENT, USER_AGENT_VALUE.parse()?);
 
-    let response = client.get(audio_url).headers(headers).send().await?;
-    let data = response.bytes().await?.to_vec();
+    let data = download_binary_with_headers(audio_url, headers).await?;
 
     Ok(AudioInfo { title, data })
 }
-
-

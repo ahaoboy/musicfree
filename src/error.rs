@@ -5,6 +5,12 @@ pub enum MusicFreeError {
     #[error("Network request failed: {0}")]
     NetworkError(#[from] reqwest::Error),
 
+    #[error("Request timeout for URL: {0}")]
+    RequestTimeout(String),
+
+    #[error("HTTP error {status} for URL: {url}")]
+    HttpError { status: u16, url: String },
+
     #[error("Invalid URL format: {0}")]
     InvalidUrl(String),
 
@@ -13,6 +19,9 @@ pub enum MusicFreeError {
 
     #[error("Failed to parse response: {0}")]
     ParseError(String),
+
+    #[error("Failed to parse JSON: {0}")]
+    JsonError(#[from] serde_json::Error),
 
     #[error("Audio stream not found")]
     AudioNotFound,
@@ -31,6 +40,9 @@ pub enum MusicFreeError {
 
     #[error("Invalid header value: {0}")]
     HeaderError(#[from] reqwest::header::InvalidHeaderValue),
+
+    #[error("Download failed: {0}")]
+    DownloadFailed(String),
 }
 
 pub type Result<T> = std::result::Result<T, MusicFreeError>;

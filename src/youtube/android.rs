@@ -1,12 +1,13 @@
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, ORIGIN, USER_AGENT};
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::download::post_json_with_headers;
 use crate::error::{MusicFreeError, Result};
 
 use super::common::{
+    ANDROID_USER_AGENT, AudioFormat, AudioInfo, INNERTUBE_CLIENT_NAME, INNERTUBE_CLIENT_VERSION,
     download_audio_data, extract_ytcfg_from_html, fetch_video_page, get_video_title,
-    AudioFormat, AudioInfo, INNERTUBE_CLIENT_NAME, INNERTUBE_CLIENT_VERSION, ANDROID_USER_AGENT,
 };
 
 #[derive(Serialize)]
@@ -64,8 +65,6 @@ async fn fetch_player_response_android(
     api_key: &str,
     visitor_data: Option<&str>,
 ) -> Result<Value> {
-    let client = reqwest::Client::new();
-
     let api_url = format!(
         "https://www.youtube.com/youtubei/v1/player?key={}&prettyPrint=false",
         api_key
@@ -104,27 +103,12 @@ async fn fetch_player_response_android(
     );
     headers.insert(ORIGIN, HeaderValue::from_static("https://www.youtube.com"));
 
-    if let Some(vd) = visitor_data {
-        if let Ok(val) = HeaderValue::from_str(vd) {
+    if let Some(vd) = visitor_data
+        && let Ok(val) = HeaderValue::from_str(vd) {
             headers.insert("X-Goog-Visitor-Id", val);
         }
-    }
 
-    let response = client
-        .post(&api_url)
-        .headers(headers)
-        .json(&request_body)
-        .send()
-        .await?;
-
-    if !response.status().is_success() {
-        return Err(MusicFreeError::YoutubeError(format!(
-            "API request failed: HTTP {}",
-            response.status()
-        )));
-    }
-
-    let player_response: Value = response.json().await?;
+    let player_response: Value = post_json_with_headers(&api_url, &request_body, headers).await?;
 
     // Check playability status
     if let Some(status) = player_response.get("playabilityStatus") {
@@ -228,5 +212,3 @@ pub async fn get_audio_formats_android(video_id: &str) -> Result<(String, Vec<Au
 
     Ok((title, formats))
 }
-
-
