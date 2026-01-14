@@ -8,7 +8,6 @@ repository = "https://github.com/ahaoboy/musicfree"
 homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
-
 [features]
 default = []
 ejs = ["dep:ejs"]
