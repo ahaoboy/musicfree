@@ -1,0 +1,5 @@
+/target
+Cargo.lock
+*.m4a
+*.mp4
+*.mp3
