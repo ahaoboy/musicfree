@@ -9,4 +9,4 @@ musicfree is a Rust-based CLI that fetches audio from supported video sites and 
 - Detects site from URL and downloads audio accordingly (YouTube or Bilibili).
 - Saves audio as a single `.m4a` file named after the video title.
 - Self-contained, async I/O with robust error handling.
-- Optional YouTube extractor powered by EJS (feature flag `ejs`).
+- Optional YouTube extractor powered by ytdlp-ejs (feature flag `ytdlp-ejs`).

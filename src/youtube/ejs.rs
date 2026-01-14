@@ -1,4 +1,4 @@
-#![cfg(feature = "ejs")]
+#![cfg(feature = "ytdlp-ejs")]
 
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
@@ -11,7 +11,7 @@ use super::common::{
     AudioInfo, WEB_USER_AGENT,
 };
 
-use ejs::{JsChallengeOutput, RuntimeType};
+use ytdlp_ejs::{JsChallengeOutput, RuntimeType};
 
 /// Download player JS file
 async fn download_player_js(player_url: &str) -> Result<String> {
@@ -76,7 +76,7 @@ fn extract_player_response_from_html(html: &str) -> Result<Value> {
 }
 
 fn decrypt(player: &str, challenges: Vec<String>) -> Option<JsChallengeOutput> {
-    ejs::run(player.to_string(), RuntimeType::QuickJS, challenges).ok()
+    ytdlp_ejs::run(player.to_string(), RuntimeType::QuickJS, challenges).ok()
 }
 
 /// Process format URL with signature and n parameter decryption
@@ -111,7 +111,7 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
                         preprocessed_player: _,
                         responses,
                     } => match &responses[0] {
-                        ejs::JsChallengeResponse::Result { data } => {
+                        ytdlp_ejs::JsChallengeResponse::Result { data } => {
                             url = Some(format!(
                                 "{}&{}={}",
                                 base_url,
@@ -119,7 +119,7 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
                                 urlencoding::encode(data.get(&s).unwrap())
                             ));
                         }
-                        ejs::JsChallengeResponse::Error { error: _ } => todo!(),
+                        ytdlp_ejs::JsChallengeResponse::Error { error: _ } => todo!(),
                     },
                     JsChallengeOutput::Error { error: _ } => todo!(),
                 }
@@ -143,7 +143,7 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
                         responses,
                     } => {
                         match &responses[0] {
-                            ejs::JsChallengeResponse::Result { data } => {
+                            ytdlp_ejs::JsChallengeResponse::Result { data } => {
                                 // Replace n parameter in URL
                                 let new_url = url.replace(
                                     &format!("n={}", n_value),
@@ -151,7 +151,7 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
                                 );
                                 url = new_url;
                             }
-                            ejs::JsChallengeResponse::Error { error: _ } => todo!(),
+                            ytdlp_ejs::JsChallengeResponse::Error { error: _ } => todo!(),
                         }
                     }
                     JsChallengeOutput::Error { error: _ } => todo!(),
