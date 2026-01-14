@@ -1,6 +1,6 @@
 mod common;
 mod android;
-#[cfg(feature = "ejs")]
+#[cfg(feature = "ytdlp-ejs")]
 mod ejs;
 
 pub use common::{extract_video_id, is_youtube_url, AudioFormat, AudioInfo};
@@ -14,7 +14,7 @@ use crate::error::Result;
 pub async fn download_audio(url: &str) -> Result<AudioInfo> {
     let video_id = extract_video_id(url)?;
 
-    #[cfg(feature = "ejs")]
+    #[cfg(feature = "ytdlp-ejs")]
     {
         match ejs::download_audio_ejs(&video_id).await {
             Ok(info) => return Ok(info),
