@@ -35,7 +35,7 @@ pub struct AudioFormat {
 pub struct YtConfig {
     pub api_key: String,
     pub visitor_data: Option<String>,
-    // pub player_url: Option<String>,
+    pub player_url: Option<String>,
 }
 
 /// Extract video ID from YouTube URL
@@ -128,25 +128,25 @@ pub fn extract_ytcfg_from_html(html: &str) -> Result<YtConfig> {
         .map(|m| m.as_str().to_string());
 
     // Extract PLAYER_JS_URL
-    // let player_re = Regex::new(r#""PLAYER_JS_URL"\s*:\s*"([^"]+)""#).unwrap();
-    // let player_url = player_re
-    //     .captures(html)
-    //     .and_then(|c| c.get(1))
-    //     .map(|m| format!("https://www.youtube.com{}", m.as_str().replace("\\/", "/")));
+    let player_re = Regex::new(r#""PLAYER_JS_URL"\s*:\s*"([^"]+)""#).unwrap();
+    let player_url = player_re
+        .captures(html)
+        .and_then(|c| c.get(1))
+        .map(|m| format!("https://www.youtube.com{}", m.as_str().replace("\\/", "/")));
 
     // Fallback: extract from jsUrl
-    // let player_url = player_url.or_else(|| {
-    //     let js_url_re = Regex::new(r#""jsUrl"\s*:\s*"([^"]+)""#).unwrap();
-    //     js_url_re
-    //         .captures(html)
-    //         .and_then(|c| c.get(1))
-    //         .map(|m| format!("https://www.youtube.com{}", m.as_str().replace("\\/", "/")))
-    // });
+    let player_url = player_url.or_else(|| {
+        let js_url_re = Regex::new(r#""jsUrl"\s*:\s*"([^"]+)""#).unwrap();
+        js_url_re
+            .captures(html)
+            .and_then(|c| c.get(1))
+            .map(|m| format!("https://www.youtube.com{}", m.as_str().replace("\\/", "/")))
+    });
 
     Ok(YtConfig {
         api_key,
         visitor_data,
-        // player_url,
+        player_url,
     })
 }
 
