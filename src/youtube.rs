@@ -1,7 +1,7 @@
 use ejs::{JsChallengeOutput, RuntimeType};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, ORIGIN, USER_AGENT};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{MusicFreeError, Result};
@@ -12,13 +12,14 @@ const INNERTUBE_CLIENT_NAME: &str = "ANDROID";
 const INNERTUBE_CLIENT_VERSION: &str = "20.10.38";
 
 /// Audio metadata from YouTube
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioInfo {
     pub title: String,
     pub data: Vec<u8>,
 }
 
 /// Audio format information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioFormat {
     pub itag: i64,
     pub mime_type: String,
@@ -246,19 +247,17 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
                     JsChallengeOutput::Result {
                         preprocessed_player: _,
                         responses,
-                    } => {
-                        match &responses[0] {
-                            ejs::JsChallengeResponse::Result { data } => {
-                                url = Some(format!(
-                                    "{}&{}={}",
-                                    base_url,
-                                    sp,
-                                    urlencoding::encode(data.get(&s).unwrap())
-                                ));
-                            }
-                            ejs::JsChallengeResponse::Error { error: _ } => todo!(),
+                    } => match &responses[0] {
+                        ejs::JsChallengeResponse::Result { data } => {
+                            url = Some(format!(
+                                "{}&{}={}",
+                                base_url,
+                                sp,
+                                urlencoding::encode(data.get(&s).unwrap())
+                            ));
                         }
-                    }
+                        ejs::JsChallengeResponse::Error { error: _ } => todo!(),
+                    },
                     JsChallengeOutput::Error { error: _ } => todo!(),
                 }
             }

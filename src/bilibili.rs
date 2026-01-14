@@ -1,4 +1,5 @@
 use reqwest::header::{HeaderMap, REFERER, USER_AGENT};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{MusicFreeError, Result};
@@ -6,6 +7,7 @@ use crate::error::{MusicFreeError, Result};
 const USER_AGENT_VALUE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
 /// Audio metadata from Bilibili
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioInfo {
     pub title: String,
     pub data: Vec<u8>,
@@ -43,7 +45,10 @@ pub async fn download_audio(url: &str) -> Result<AudioInfo> {
     let client = reqwest::Client::new();
 
     // Get video info
-    let api_url = format!("https://api.bilibili.com/x/web-interface/view?bvid={}", bvid);
+    let api_url = format!(
+        "https://api.bilibili.com/x/web-interface/view?bvid={}",
+        bvid
+    );
     let resp: Value = client.get(&api_url).send().await?.json().await?;
 
     let data = resp.get("data").ok_or(MusicFreeError::VideoNotFound)?;
@@ -52,10 +57,7 @@ pub async fn download_audio(url: &str) -> Result<AudioInfo> {
         .as_i64()
         .ok_or_else(|| MusicFreeError::ParseError("Cannot get CID".to_string()))?;
 
-    let title = data["title"]
-        .as_str()
-        .unwrap_or("audio")
-        .to_string();
+    let title = data["title"].as_str().unwrap_or("audio").to_string();
 
     // Get play URL (fnval=16 for DASH format)
     let play_url = format!(
