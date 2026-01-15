@@ -33,3 +33,16 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
 sanitize-filename = "0.6"
+
+[profile.release]
+debug = false
+lto = true
+strip = true
+opt-level = 3
+codegen-units = 1
+
+[profile.bloaty]
+debug = true
+lto = false
+strip = false
+inherits = 'release'
