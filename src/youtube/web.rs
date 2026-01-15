@@ -1,14 +1,13 @@
-#![cfg(feature = "ytdlp-ejs")]
-
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::Value;
 
-use crate::download::download_text_with_headers;
+use crate::{Audio, Platform};
+use crate::download::download_text;
 use crate::error::{MusicFreeError, Result};
 
 use super::common::{
-    AudioFormat, AudioInfo, WEB_USER_AGENT, download_audio_data, extract_ytcfg_from_html,
+    AudioFormat,   WEB_USER_AGENT, download_audio_data, extract_ytcfg_from_html,
     fetch_video_page, get_video_title,
 };
 
@@ -19,7 +18,7 @@ async fn download_player_js(player_url: &str) -> Result<String> {
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_static(WEB_USER_AGENT));
 
-    download_text_with_headers(player_url, headers).await
+    download_text(player_url, headers).await
 }
 
 /// Extract player response from HTML
@@ -31,8 +30,8 @@ fn extract_player_response_from_html(html: &str) -> Result<Value> {
 
     for pattern in patterns {
         let re = Regex::new(pattern).unwrap();
-        if let Some(caps) = re.captures(html) {
-            if let Some(json_str) = caps.get(1) {
+        if let Some(caps) = re.captures(html)
+            && let Some(json_str) = caps.get(1) {
                 // Find correct JSON end position by counting braces
                 let s = json_str.as_str();
                 let mut brace_count = 0;
@@ -57,7 +56,6 @@ fn extract_player_response_from_html(html: &str) -> Result<Value> {
                     }
                 }
             }
-        }
     }
 
     Err(MusicFreeError::ParseError(
@@ -77,8 +75,8 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
         .map(|s| s.to_string());
 
     // Handle signatureCipher
-    if url.is_none() {
-        if let Some(cipher) = format.get("signatureCipher").and_then(|c| c.as_str()) {
+    if url.is_none()
+        && let Some(cipher) = format.get("signatureCipher").and_then(|c| c.as_str()) {
             let params: std::collections::HashMap<_, _> = cipher
                 .split('&')
                 .filter_map(|p| {
@@ -115,18 +113,16 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
                 }
             }
         }
-    }
 
     let mut url = url?;
 
     // Process n parameter
-    if let Ok(parsed_url) = reqwest::Url::parse(&url) {
-        if let Some(n_value) = parsed_url
+    if let Ok(parsed_url) = reqwest::Url::parse(&url)
+        && let Some(n_value) = parsed_url
             .query_pairs()
             .find(|(k, _)| k == "n")
             .map(|(_, v)| v.to_string())
-        {
-            if let Some(decrypted_n) = decrypt(&player, vec![format!("n:{n_value}")]) {
+            && let Some(decrypted_n) = decrypt(&player, vec![format!("n:{n_value}")]) {
                 match decrypted_n {
                     JsChallengeOutput::Result {
                         preprocessed_player: _,
@@ -147,8 +143,6 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
                     JsChallengeOutput::Error { error: _ } => todo!(),
                 }
             }
-        }
-    }
 
     Some(url)
 }
@@ -206,7 +200,7 @@ fn extract_audio_formats_web(player_response: &Value, player: String) -> Result<
 }
 
 /// Download audio using web client with EJS decryption
-pub async fn download_audio_ejs(video_id: &str) -> Result<AudioInfo> {
+pub async fn download_audio_ejs(video_id: &str) -> Result<Audio > {
     // Step 1: Fetch video page
     let html = fetch_video_page(video_id).await?;
 
@@ -238,6 +232,8 @@ pub async fn download_audio_ejs(video_id: &str) -> Result<AudioInfo> {
 
     // Step 8: Download audio
     let data = download_audio_data(&format.url).await?;
+        let audio = Audio::new( title , format.url.to_string(), Platform::Youtube)
+            .with_binary(data);
 
-    Ok(AudioInfo { title, data })
+    Ok(audio)
 }

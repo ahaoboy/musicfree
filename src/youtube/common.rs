@@ -3,7 +3,7 @@ use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::download::{download_binary_with_headers, download_text_with_headers};
+use crate::download::{download_binary, download_text};
 use crate::error::{MusicFreeError, Result};
 
 pub const WEB_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -11,13 +11,6 @@ pub const ANDROID_USER_AGENT: &str =
     "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip";
 pub const INNERTUBE_CLIENT_NAME: &str = "ANDROID";
 pub const INNERTUBE_CLIENT_VERSION: &str = "20.10.38";
-
-/// Audio metadata from YouTube
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AudioInfo {
-    pub title: String,
-    pub data: Vec<u8>,
-}
 
 /// Audio format information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +24,7 @@ pub struct AudioFormat {
 }
 
 /// YouTube configuration extracted from page
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YtConfig {
     pub api_key: String,
     pub visitor_data: Option<String>,
@@ -63,16 +56,17 @@ pub fn extract_video_id(url: &str) -> Result<String> {
 
     // youtu.be/VIDEO_ID
     if url.contains("youtu.be/")
-        && let Some(pos) = url.find("youtu.be/") {
-            let id: String = url[pos + 9..]
-                .chars()
-                .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
-                .take(11)
-                .collect();
-            if id.len() == 11 {
-                return Ok(id);
-            }
+        && let Some(pos) = url.find("youtu.be/")
+    {
+        let id: String = url[pos + 9..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+            .take(11)
+            .collect();
+        if id.len() == 11 {
+            return Ok(id);
         }
+    }
 
     Err(MusicFreeError::InvalidUrl(format!(
         "Cannot extract video ID from: {}",
@@ -96,7 +90,7 @@ pub async fn fetch_video_page(video_id: &str) -> Result<String> {
         HeaderValue::from_static("CONSENT=YES+cb; SOCS=CAI"),
     );
 
-    download_text_with_headers(&url, headers).await
+    download_text(&url, headers).await
 }
 
 /// Extract ytcfg configuration from HTML
@@ -153,5 +147,5 @@ pub async fn download_audio_data(url: &str) -> Result<Vec<u8>> {
     headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
     headers.insert("Range", HeaderValue::from_static("bytes=0-"));
 
-    download_binary_with_headers(url, headers).await
+    download_binary(url, headers).await
 }

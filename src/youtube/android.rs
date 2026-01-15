@@ -2,11 +2,12 @@ use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::download::post_json_with_headers;
+use crate::{Audio, Platform};
+use crate::download::post_json;
 use crate::error::{MusicFreeError, Result};
 
 use super::common::{
-    ANDROID_USER_AGENT, AudioFormat, AudioInfo, INNERTUBE_CLIENT_NAME, INNERTUBE_CLIENT_VERSION,
+    ANDROID_USER_AGENT, AudioFormat,  INNERTUBE_CLIENT_NAME, INNERTUBE_CLIENT_VERSION,
     download_audio_data, extract_ytcfg_from_html, fetch_video_page, get_video_title,
 };
 
@@ -104,11 +105,12 @@ async fn fetch_player_response_android(
     headers.insert(ORIGIN, HeaderValue::from_static("https://www.youtube.com"));
 
     if let Some(vd) = visitor_data
-        && let Ok(val) = HeaderValue::from_str(vd) {
-            headers.insert("X-Goog-Visitor-Id", val);
-        }
+        && let Ok(val) = HeaderValue::from_str(vd)
+    {
+        headers.insert("X-Goog-Visitor-Id", val);
+    }
 
-    let player_response: Value = post_json_with_headers(&api_url, &request_body, headers).await?;
+    let player_response: Value = post_json(&api_url, &request_body, headers).await?;
 
     // Check playability status
     if let Some(status) = player_response.get("playabilityStatus") {
@@ -175,7 +177,7 @@ fn extract_audio_formats_android(player_response: &Value) -> Result<Vec<AudioFor
 }
 
 /// Download audio using Android client
-pub async fn download_audio_android(video_id: &str) -> Result<AudioInfo> {
+pub async fn download_audio_android(video_id: &str) -> Result<Audio > {
     // First fetch page to get API key
     let html = fetch_video_page(video_id).await?;
     let ytcfg = extract_ytcfg_from_html(&html)?;
@@ -194,8 +196,10 @@ pub async fn download_audio_android(video_id: &str) -> Result<AudioInfo> {
         .ok_or(MusicFreeError::AudioNotFound)?;
 
     let data = download_audio_data(&format.url).await?;
+        let audio = Audio::new( title , format.url.to_string(), Platform::Youtube)
+            .with_binary(data);
 
-    Ok(AudioInfo { title, data })
+    Ok(audio)
 }
 
 /// Get available audio formats without downloading

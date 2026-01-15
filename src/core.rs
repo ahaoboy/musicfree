@@ -1,0 +1,117 @@
+use crate::error::Result;
+use serde::{Deserialize, Serialize};
+
+/// Supported platforms
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum Platform {
+    Bilibili,
+    Youtube,
+}
+
+/// Audio resource representation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Audio {
+    pub title: String,
+    pub download_url: String,
+    pub local_url: Option<String>,
+    pub binary: Option<Vec<u8>>,
+    pub author: Vec<String>,
+    pub cover: Option<String>,
+    pub tags: Vec<String>,
+    pub duration: Option<u32>,
+    pub platform: Platform,
+    pub date: u32,
+}
+
+impl Audio {
+    /// Create a new audio instance
+    pub fn new(title: String, download_url: String, platform: Platform) -> Self {
+        Self {
+            title,
+            download_url,
+            local_url: None,
+            binary: None,
+            author: Vec::new(),
+            cover: None,
+            tags: Vec::new(),
+            duration: None,
+            platform,
+            date: chrono::Utc::now().timestamp() as u32,
+        }
+    }
+
+    /// Set author
+    pub fn with_author(mut self, author: Vec<String>) -> Self {
+        self.author = author;
+        self
+    }
+
+    /// Set cover URL
+    pub fn with_cover(mut self, cover: String) -> Self {
+        self.cover = Some(cover);
+        self
+    }
+
+    /// Set tags
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    /// Set duration in seconds
+    pub fn with_duration(mut self, duration: u32) -> Self {
+        self.duration = Some(duration);
+        self
+    }
+
+    /// Set binary data
+    pub fn with_binary(mut self, binary: Vec<u8>) -> Self {
+        self.binary = Some(binary);
+        self
+    }
+
+    /// Set local URL
+    pub fn with_local_url(mut self, local_url: String) -> Self {
+        self.local_url = Some(local_url);
+        self
+    }
+}
+
+/// Playlist representation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayList {
+    pub title: String,
+    pub audios: Vec<Audio>,
+    pub date: u32,
+}
+
+impl PlayList {
+    /// Create a new playlist
+    pub fn new(title: String) -> Self {
+        Self {
+            title,
+            audios: Vec::new(),
+            date: chrono::Utc::now().timestamp() as u32,
+        }
+    }
+
+    /// Add audio to playlist
+    pub fn add_audio(mut self, audio: Audio) -> Self {
+        self.audios.push(audio);
+        self
+    }
+}
+
+/// Trait for extracting audio from different platforms
+#[async_trait::async_trait]
+pub trait Extractor: Send + Sync {
+    /// Check if the URL is supported by this extractor
+    fn matches(&self, url: &str) -> bool;
+
+    /// Extract audio resources from URL
+    /// Returns a Vec<Audio> since a URL might contain multiple audio resources
+    async fn extract(&self, url: &str) -> Result<Vec<Audio>>;
+
+    /// Get platform identifier
+    fn platform(&self) -> Platform;
+}

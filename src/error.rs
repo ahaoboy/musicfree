@@ -43,6 +43,24 @@ pub enum MusicFreeError {
 
     #[error("Download failed: {0}")]
     DownloadFailed(String),
+
+    #[error("Extractor not found for URL: {0}")]
+    ExtractorNotFound(String),
+
+    #[error("Platform not supported: {0}")]
+    PlatformNotSupported(String),
+
+    #[error("Failed to extract audio: {0}")]
+    ExtractionFailed(String),
+
+    #[error("Timeout during extraction: {0}")]
+    ExtractionTimeout(String),
+
+    #[error("Invalid response format: {0}")]
+    InvalidResponse(String),
+
+    #[error("Rate limited: {0}")]
+    RateLimited(String),
 }
 
 pub type Result<T> = std::result::Result<T, MusicFreeError>;

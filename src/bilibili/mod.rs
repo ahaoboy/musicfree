@@ -1,18 +1,9 @@
-use reqwest::header::{HeaderMap, REFERER, USER_AGENT};
-use serde::{Deserialize, Serialize};
+use async_trait::async_trait;
+use reqwest::header::{HeaderMap, REFERER,  };
 use serde_json::Value;
-
-use crate::download::{download_binary_with_headers, download_json_with_headers};
+use crate::core::{Audio, Extractor, Platform};
+use crate::download::{download_binary, download_json};
 use crate::error::{MusicFreeError, Result};
-
-const USER_AGENT_VALUE: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
-
-/// Audio metadata from Bilibili
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AudioInfo {
-    pub title: String,
-    pub data: Vec<u8>,
-}
 
 /// Extract BV ID from Bilibili URL
 pub fn extract_bvid(url: &str) -> Result<String> {
@@ -41,7 +32,7 @@ pub fn is_bilibili_url(url: &str) -> bool {
 }
 
 /// Download audio from Bilibili video
-pub async fn download_audio(url: &str) -> Result<AudioInfo> {
+pub async fn download_audio(url: &str) -> Result<Audio> {
     let bvid = extract_bvid(url)?;
 
     // Get video info
@@ -49,7 +40,7 @@ pub async fn download_audio(url: &str) -> Result<AudioInfo> {
         "https://api.bilibili.com/x/web-interface/view?bvid={}",
         bvid
     );
-    let resp: Value = download_json_with_headers(&api_url, HeaderMap::new()).await?;
+    let resp: Value = download_json(&api_url, HeaderMap::new()).await?;
 
     let data = resp.get("data").ok_or(MusicFreeError::VideoNotFound)?;
 
@@ -64,7 +55,7 @@ pub async fn download_audio(url: &str) -> Result<AudioInfo> {
         "https://api.bilibili.com/x/player/playurl?bvid={}&cid={}&fnval=16",
         bvid, cid
     );
-    let play_resp: Value = download_json_with_headers(&play_url, HeaderMap::new()).await?;
+    let play_resp: Value = download_json(&play_url, HeaderMap::new()).await?;
 
     // Extract audio URL
     let audio_url = play_resp["data"]["dash"]["audio"]
@@ -76,9 +67,30 @@ pub async fn download_audio(url: &str) -> Result<AudioInfo> {
     // Download audio with proper headers
     let mut headers = HeaderMap::new();
     headers.insert(REFERER, "https://www.bilibili.com".parse()?);
-    headers.insert(USER_AGENT, USER_AGENT_VALUE.parse()?);
 
-    let data = download_binary_with_headers(audio_url, headers).await?;
+    let data = download_binary(audio_url, headers).await?;
 
-    Ok(AudioInfo { title, data })
+    let audio = Audio::new(title, url.to_string(), Platform::Bilibili).with_binary(data);
+
+    Ok(audio)
+}
+
+/// Bilibili extractor implementing the Extractor trait
+#[derive(Debug, Clone)]
+pub struct BilibiliExtractor;
+
+#[async_trait]
+impl Extractor for BilibiliExtractor {
+    fn matches(&self, url: &str) -> bool {
+        is_bilibili_url(url)
+    }
+
+    async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
+        let audio = download_audio(url).await?;
+        Ok(vec![audio])
+    }
+
+    fn platform(&self) -> Platform {
+        Platform::Bilibili
+    }
 }

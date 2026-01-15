@@ -8,11 +8,6 @@ repository = "https://github.com/ahaoboy/musicfree"
 homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
-[features]
-default = []
-ytdlp-ejs = ["dep:ytdlp-ejs"]
-bindgen = ["ytdlp-ejs", "ytdlp-ejs/bindgen"]
-
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -25,7 +20,12 @@ tokio = { version = "1", features = ["full"] }
 thiserror = "2"
 regex = "1"
 urlencoding = "2"
-ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, optional = true, features = [
+ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, features = [
   "qjs",
+  "bindgen",
 ] }
 anyhow = "1"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
+sanitize-filename = "0.6"

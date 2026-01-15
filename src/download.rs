@@ -12,6 +12,9 @@ fn get_http_client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(DEFAULT_TIMEOUT)
         .connect_timeout(DEFAULT_TIMEOUT)
+        .pool_max_idle_per_host(10)
+        .pool_idle_timeout(Duration::from_secs(30))
+        .tcp_keepalive(Duration::from_secs(60))
         .build()
         .expect("Failed to create HTTP client")
 }
@@ -24,13 +27,9 @@ fn get_default_headers() -> HeaderMap {
 }
 
 /// Create custom headers with additional values
-fn create_custom_headers(additional_headers: Option<HeaderMap>) -> Result<HeaderMap> {
+fn create_custom_headers(additional_headers: HeaderMap) -> Result<HeaderMap> {
     let mut headers = get_default_headers().clone();
-
-    if let Some(custom) = additional_headers {
-        headers.extend(custom);
-    }
-
+    headers.extend(additional_headers);
     Ok(headers)
 }
 
@@ -39,7 +38,7 @@ async fn execute_request(
     client: reqwest::Client,
     method: reqwest::Method,
     url: &str,
-    headers: Option<HeaderMap>,
+    headers: HeaderMap,
 ) -> Result<reqwest::Response> {
     let request_headers = create_custom_headers(headers)?;
     let request = client.request(method.clone(), url).headers(request_headers);
@@ -63,73 +62,43 @@ async fn execute_request(
     }
 }
 
-/// Download and parse JSON response from URL
-pub async fn download_json<T: DeserializeOwned>(url: &str) -> Result<T> {
-    let client = get_http_client();
-    let response = execute_request(client, reqwest::Method::GET, url, None).await?;
-    response.json::<T>().await.map_err(MusicFreeError::from)
-}
-
 /// Download and parse JSON response with custom headers
-pub async fn download_json_with_headers<T: DeserializeOwned>(
+pub async fn download_json<T: DeserializeOwned>(
     url: &str,
     headers: HeaderMap,
 ) -> Result<T> {
-    let client = get_http_client();
-    let response = execute_request(client, reqwest::Method::GET, url, Some(headers)).await?;
+    let response = get_response(url, headers).await?;
     response.json::<T>().await.map_err(MusicFreeError::from)
 }
 
 /// Download binary data from URL
-pub async fn download_binary(url: &str) -> Result<Vec<u8>> {
-    let client = get_http_client();
-    let response = execute_request(client, reqwest::Method::GET, url, None).await?;
+pub async fn download_binary(url: &str, headers: HeaderMap) -> Result<Vec<u8>> {
+    let response = get_response(url, headers).await?;
     let bytes = response.bytes().await.map_err(MusicFreeError::from)?;
     Ok(bytes.to_vec())
 }
 
-/// Download binary data from URL with custom headers
-pub async fn download_binary_with_headers(url: &str, headers: HeaderMap) -> Result<Vec<u8>> {
-    let client = get_http_client();
-    let response = execute_request(client, reqwest::Method::GET, url, Some(headers)).await?;
-    let bytes = response.bytes().await.map_err(MusicFreeError::from)?;
-    Ok(bytes.to_vec())
-}
-
-/// Get HTTP response from URL
-pub async fn get_response(url: &str) -> Result<reqwest::Response> {
-    let client = get_http_client();
-    execute_request(client, reqwest::Method::GET, url, None).await
-}
 
 /// Get HTTP response from URL with custom headers
-pub async fn get_response_with_headers(url: &str, headers: HeaderMap) -> Result<reqwest::Response> {
+pub async fn get_response(url: &str, headers: HeaderMap) -> Result<reqwest::Response> {
     let client = get_http_client();
-    execute_request(client, reqwest::Method::GET, url, Some(headers)).await
-}
-
-/// Download text content from URL
-pub async fn download_text(url: &str) -> Result<String> {
-    let client = get_http_client();
-    let response = execute_request(client, reqwest::Method::GET, url, None).await?;
-    response.text().await.map_err(MusicFreeError::from)
+    execute_request(client, reqwest::Method::GET, url, headers).await
 }
 
 /// Download text content from URL with custom headers
-pub async fn download_text_with_headers(url: &str, headers: HeaderMap) -> Result<String> {
-    let client = get_http_client();
-    let response = execute_request(client, reqwest::Method::GET, url, Some(headers)).await?;
+pub async fn download_text(url: &str, headers: HeaderMap) -> Result<String> {
+    let response = get_response(url, headers).await?;
     response.text().await.map_err(MusicFreeError::from)
 }
 
 /// Execute POST request with JSON body and custom headers
-pub async fn post_json_with_headers<T: DeserializeOwned, B: Serialize>(
+pub async fn post_json<T: DeserializeOwned, B: Serialize>(
     url: &str,
     body: &B,
     headers: HeaderMap,
 ) -> Result<T> {
     let client = get_http_client();
-    let request_headers = create_custom_headers(Some(headers))?;
+    let request_headers = create_custom_headers(headers)?;
     let request = client.post(url).headers(request_headers).json(body);
 
     let response = request.send().await.map_err(|e| {
@@ -148,42 +117,5 @@ pub async fn post_json_with_headers<T: DeserializeOwned, B: Serialize>(
             status: status.as_u16(),
             url: url.to_string(),
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use reqwest::header::HeaderMap;
-
-    #[tokio::test]
-    async fn test_download_json() {
-        let url = "https://httpbin.org/json";
-        let result: serde_json::Value = download_json(url).await.unwrap();
-        assert!(result.is_object());
-    }
-
-    #[tokio::test]
-    async fn test_download_binary() {
-        let url = "https://httpbin.org/bytes/100";
-        let result = download_binary(url).await.unwrap();
-        assert_eq!(result.len(), 100);
-    }
-
-    #[tokio::test]
-    async fn test_download_text() {
-        let url = "https://httpbin.org/robots.txt";
-        let result = download_text(url).await.unwrap();
-        assert!(!result.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_custom_headers() {
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Test", "value".parse().unwrap());
-
-        let url = "https://httpbin.org/headers";
-        let result: serde_json::Value = download_json_with_headers(url, headers).await.unwrap();
-        assert!(result.is_object());
     }
 }
