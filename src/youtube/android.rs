@@ -2,12 +2,12 @@ use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{Audio, Platform};
 use crate::download::post_json;
 use crate::error::{MusicFreeError, Result};
+use crate::{Audio, Platform};
 
 use super::common::{
-    ANDROID_USER_AGENT, AudioFormat,  INNERTUBE_CLIENT_NAME, INNERTUBE_CLIENT_VERSION,
+    ANDROID_USER_AGENT, AudioFormat, INNERTUBE_CLIENT_NAME, INNERTUBE_CLIENT_VERSION,
     download_audio_data, extract_ytcfg_from_html, fetch_video_page, get_video_title,
 };
 
@@ -177,7 +177,7 @@ fn extract_audio_formats_android(player_response: &Value) -> Result<Vec<AudioFor
 }
 
 /// Download audio using Android client
-pub async fn download_audio_android(video_id: &str) -> Result<Audio > {
+pub async fn download_audio_android(video_id: &str) -> Result<Audio> {
     // First fetch page to get API key
     let html = fetch_video_page(video_id).await?;
     let ytcfg = extract_ytcfg_from_html(&html)?;
@@ -196,8 +196,7 @@ pub async fn download_audio_android(video_id: &str) -> Result<Audio > {
         .ok_or(MusicFreeError::AudioNotFound)?;
 
     let data = download_audio_data(&format.url).await?;
-        let audio = Audio::new( title , format.url.to_string(), Platform::Youtube)
-            .with_binary(data);
+    let audio = Audio::new(title, format.url.to_string(), Platform::Youtube).with_binary(data);
 
     Ok(audio)
 }

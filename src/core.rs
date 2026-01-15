@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub enum Platform {
     Bilibili,
     Youtube,
+    File,
 }
 
 /// Audio resource representation

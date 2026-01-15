@@ -2,13 +2,13 @@ use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use serde_json::Value;
 
-use crate::{Audio, Platform};
 use crate::download::download_text;
 use crate::error::{MusicFreeError, Result};
+use crate::{Audio, Platform};
 
 use super::common::{
-    AudioFormat,   WEB_USER_AGENT, download_audio_data, extract_ytcfg_from_html,
-    fetch_video_page, get_video_title,
+    AudioFormat, WEB_USER_AGENT, download_audio_data, extract_ytcfg_from_html, fetch_video_page,
+    get_video_title,
 };
 
 use ytdlp_ejs::{JsChallengeOutput, RuntimeType};
@@ -31,31 +31,32 @@ fn extract_player_response_from_html(html: &str) -> Result<Value> {
     for pattern in patterns {
         let re = Regex::new(pattern).unwrap();
         if let Some(caps) = re.captures(html)
-            && let Some(json_str) = caps.get(1) {
-                // Find correct JSON end position by counting braces
-                let s = json_str.as_str();
-                let mut brace_count = 0;
-                let mut end_index = 0;
+            && let Some(json_str) = caps.get(1)
+        {
+            // Find correct JSON end position by counting braces
+            let s = json_str.as_str();
+            let mut brace_count = 0;
+            let mut end_index = 0;
 
-                for (i, c) in s.chars().enumerate() {
-                    match c {
-                        '{' => brace_count += 1,
-                        '}' => brace_count -= 1,
-                        _ => {}
-                    }
-                    if brace_count == 0 {
-                        end_index = i + 1;
-                        break;
-                    }
+            for (i, c) in s.chars().enumerate() {
+                match c {
+                    '{' => brace_count += 1,
+                    '}' => brace_count -= 1,
+                    _ => {}
                 }
-
-                if end_index > 0 {
-                    let json_str = &s[..end_index];
-                    if let Ok(value) = serde_json::from_str(json_str) {
-                        return Ok(value);
-                    }
+                if brace_count == 0 {
+                    end_index = i + 1;
+                    break;
                 }
             }
+
+            if end_index > 0 {
+                let json_str = &s[..end_index];
+                if let Ok(value) = serde_json::from_str(json_str) {
+                    return Ok(value);
+                }
+            }
+        }
     }
 
     Err(MusicFreeError::ParseError(
@@ -76,43 +77,44 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
 
     // Handle signatureCipher
     if url.is_none()
-        && let Some(cipher) = format.get("signatureCipher").and_then(|c| c.as_str()) {
-            let params: std::collections::HashMap<_, _> = cipher
-                .split('&')
-                .filter_map(|p| {
-                    let mut parts = p.splitn(2, '=');
-                    Some((parts.next()?, parts.next()?))
-                })
-                .collect();
+        && let Some(cipher) = format.get("signatureCipher").and_then(|c| c.as_str())
+    {
+        let params: std::collections::HashMap<_, _> = cipher
+            .split('&')
+            .filter_map(|p| {
+                let mut parts = p.splitn(2, '=');
+                Some((parts.next()?, parts.next()?))
+            })
+            .collect();
 
-            let base_url = params
-                .get("url")
-                .map(|u| urlencoding::decode(u).unwrap_or_default().to_string())?;
-            let s = params
-                .get("s")
-                .map(|s| urlencoding::decode(s).unwrap_or_default().to_string())?;
-            let sp = params.get("sp").unwrap_or(&"signature");
+        let base_url = params
+            .get("url")
+            .map(|u| urlencoding::decode(u).unwrap_or_default().to_string())?;
+        let s = params
+            .get("s")
+            .map(|s| urlencoding::decode(s).unwrap_or_default().to_string())?;
+        let sp = params.get("sp").unwrap_or(&"signature");
 
-            if let Some(decrypted_n) = decrypt(&player, vec![format!("sig:{s}")]) {
-                match decrypted_n {
-                    JsChallengeOutput::Result {
-                        preprocessed_player: _,
-                        responses,
-                    } => match &responses[0] {
-                        ytdlp_ejs::JsChallengeResponse::Result { data } => {
-                            url = Some(format!(
-                                "{}&{}={}",
-                                base_url,
-                                sp,
-                                urlencoding::encode(data.get(&s).unwrap())
-                            ));
-                        }
-                        ytdlp_ejs::JsChallengeResponse::Error { error: _ } => todo!(),
-                    },
-                    JsChallengeOutput::Error { error: _ } => todo!(),
-                }
+        if let Some(decrypted_n) = decrypt(&player, vec![format!("sig:{s}")]) {
+            match decrypted_n {
+                JsChallengeOutput::Result {
+                    preprocessed_player: _,
+                    responses,
+                } => match &responses[0] {
+                    ytdlp_ejs::JsChallengeResponse::Result { data } => {
+                        url = Some(format!(
+                            "{}&{}={}",
+                            base_url,
+                            sp,
+                            urlencoding::encode(data.get(&s).unwrap())
+                        ));
+                    }
+                    ytdlp_ejs::JsChallengeResponse::Error { error: _ } => todo!(),
+                },
+                JsChallengeOutput::Error { error: _ } => todo!(),
             }
         }
+    }
 
     let mut url = url?;
 
@@ -122,27 +124,28 @@ fn process_format_url(format: &Value, player: String) -> Option<String> {
             .query_pairs()
             .find(|(k, _)| k == "n")
             .map(|(_, v)| v.to_string())
-            && let Some(decrypted_n) = decrypt(&player, vec![format!("n:{n_value}")]) {
-                match decrypted_n {
-                    JsChallengeOutput::Result {
-                        preprocessed_player: _,
-                        responses,
-                    } => {
-                        match &responses[0] {
-                            ytdlp_ejs::JsChallengeResponse::Result { data } => {
-                                // Replace n parameter in URL
-                                let new_url = url.replace(
-                                    &format!("n={}", n_value),
-                                    &format!("n={}", data.get(&n_value).unwrap()),
-                                );
-                                url = new_url;
-                            }
-                            ytdlp_ejs::JsChallengeResponse::Error { error: _ } => todo!(),
-                        }
+        && let Some(decrypted_n) = decrypt(&player, vec![format!("n:{n_value}")])
+    {
+        match decrypted_n {
+            JsChallengeOutput::Result {
+                preprocessed_player: _,
+                responses,
+            } => {
+                match &responses[0] {
+                    ytdlp_ejs::JsChallengeResponse::Result { data } => {
+                        // Replace n parameter in URL
+                        let new_url = url.replace(
+                            &format!("n={}", n_value),
+                            &format!("n={}", data.get(&n_value).unwrap()),
+                        );
+                        url = new_url;
                     }
-                    JsChallengeOutput::Error { error: _ } => todo!(),
+                    ytdlp_ejs::JsChallengeResponse::Error { error: _ } => todo!(),
                 }
             }
+            JsChallengeOutput::Error { error: _ } => todo!(),
+        }
+    }
 
     Some(url)
 }
@@ -200,7 +203,7 @@ fn extract_audio_formats_web(player_response: &Value, player: String) -> Result<
 }
 
 /// Download audio using web client with EJS decryption
-pub async fn download_audio_ejs(video_id: &str) -> Result<Audio > {
+pub async fn download_audio_ejs(video_id: &str) -> Result<Audio> {
     // Step 1: Fetch video page
     let html = fetch_video_page(video_id).await?;
 
@@ -232,8 +235,7 @@ pub async fn download_audio_ejs(video_id: &str) -> Result<Audio > {
 
     // Step 8: Download audio
     let data = download_audio_data(&format.url).await?;
-        let audio = Audio::new( title , format.url.to_string(), Platform::Youtube)
-            .with_binary(data);
+    let audio = Audio::new(title, format.url.to_string(), Platform::Youtube).with_binary(data);
 
     Ok(audio)
 }

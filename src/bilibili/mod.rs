@@ -1,9 +1,9 @@
-use async_trait::async_trait;
-use reqwest::header::{HeaderMap, REFERER,  };
-use serde_json::Value;
 use crate::core::{Audio, Extractor, Platform};
 use crate::download::{download_binary, download_json};
 use crate::error::{MusicFreeError, Result};
+use async_trait::async_trait;
+use reqwest::header::{HeaderMap, REFERER};
+use serde_json::Value;
 
 /// Extract BV ID from Bilibili URL
 pub fn extract_bvid(url: &str) -> Result<String> {

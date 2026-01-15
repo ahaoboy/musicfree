@@ -63,10 +63,7 @@ async fn execute_request(
 }
 
 /// Download and parse JSON response with custom headers
-pub async fn download_json<T: DeserializeOwned>(
-    url: &str,
-    headers: HeaderMap,
-) -> Result<T> {
+pub async fn download_json<T: DeserializeOwned>(url: &str, headers: HeaderMap) -> Result<T> {
     let response = get_response(url, headers).await?;
     response.json::<T>().await.map_err(MusicFreeError::from)
 }
@@ -77,7 +74,6 @@ pub async fn download_binary(url: &str, headers: HeaderMap) -> Result<Vec<u8>> {
     let bytes = response.bytes().await.map_err(MusicFreeError::from)?;
     Ok(bytes.to_vec())
 }
-
 
 /// Get HTTP response from URL with custom headers
 pub async fn get_response(url: &str, headers: HeaderMap) -> Result<reqwest::Response> {
