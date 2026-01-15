@@ -1,0 +1,47 @@
+use crate::core::{Audio, Extractor, Platform};
+use crate::error::Result;
+
+/// Direct file extractor: treat http/https URLs as file downloads
+pub struct FileExtractor;
+
+fn is_http_url(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
+fn is_audio(url: &str) -> bool {
+    [".mp3"].iter().any(|ext| url.ends_with(ext))
+}
+
+#[async_trait::async_trait]
+impl Extractor for FileExtractor {
+    fn matches(&self, url: &str) -> bool {
+        // If URL is HTTP(S) and does not look like a known platform URL, treat as direct file
+        is_http_url(url) && is_audio(url)
+    }
+
+    async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
+        // Create a minimal Audio struct representing a downloadable file
+        let audio = Audio::new(
+            // Title can be derived from URL basename
+            Self::basename(url),
+            url.to_string(),
+            Platform::File,
+        );
+        Ok(vec![audio])
+    }
+
+    fn platform(&self) -> Platform {
+        Platform::File
+    }
+}
+
+impl FileExtractor {
+    fn basename(url: &str) -> String {
+        // crude basename extraction
+        let u = url.trim_end_matches('/');
+        if let Some(pos) = u.rsplit('/').next().map(|s| s.to_string()) {
+            return pos;
+        }
+        "direct_file".to_string()
+    }
+}
