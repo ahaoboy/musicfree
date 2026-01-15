@@ -48,7 +48,11 @@ async fn main() {
 
                 // Save audio to file
                 if let Some(binary_data) = audio.binary {
-                    let filename = sanitize_filename::sanitize(&audio.title);
+                    let filename = sanitize_filename::sanitize(&audio.title)
+                        + audio
+                            .format
+                            .unwrap_or(musicfree::core::AudioFormat::Mp3)
+                            .extension();
                     let path = Path::new(".").join(&filename);
 
                     match fs::write(&path, binary_data) {

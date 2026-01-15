@@ -1,8 +1,8 @@
-use reqwest::header::HeaderMap;
-
-use crate::core::{Audio, Extractor, Platform};
+use crate::core::{Audio, AudioFormat, Extractor, Platform};
 use crate::download::download_binary;
 use crate::error::Result;
+use reqwest::header::HeaderMap;
+pub use strum::IntoEnumIterator;
 
 /// Direct file extractor: treat http/https URLs as file downloads
 pub struct FileExtractor;
@@ -11,28 +11,28 @@ fn is_http_url(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
 }
 
-fn is_audio(url: &str) -> bool {
-    [".mp3"]
-        .iter()
-        .any(|ext| url.to_ascii_lowercase().ends_with(ext))
+fn is_audio(url: &str) -> Option<AudioFormat> {
+    AudioFormat::iter().find(|fmt| url.ends_with(fmt.extension()))
 }
 
 #[async_trait::async_trait]
 impl Extractor for FileExtractor {
     fn matches(&self, url: &str) -> bool {
         // If URL is HTTP(S) and looks like an audio file
-        is_http_url(url) && is_audio(url)
+        is_http_url(url) && is_audio(url).is_some()
     }
 
     async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
         let binary = download_binary(url, HeaderMap::new()).await?;
+        let fmt = is_audio(url).unwrap_or(AudioFormat::Mp3);
         // Create a minimal Audio struct representing a downloadable file
         let audio = Audio::new(
             // Title can be derived from URL basename
-            Self::basename(url),
+            Self::basename(url).replace(fmt.extension(), ""),
             url.to_string(),
             Platform::File,
         )
+        .with_format(fmt)
         .with_binary(binary);
         Ok(vec![audio])
     }

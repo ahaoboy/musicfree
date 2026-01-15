@@ -1,5 +1,7 @@
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
+pub use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 /// Supported platforms
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -10,7 +12,7 @@ pub enum Platform {
 }
 
 // Audio format representation
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(EnumIter, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AudioFormat {
     Mp3,
     M4A,
@@ -19,6 +21,17 @@ pub enum AudioFormat {
     AAC,
 }
 
+impl AudioFormat {
+    pub fn extension(&self) ->  &'static str  {
+        match self {
+            AudioFormat::Mp3 => ".mp3",
+            AudioFormat::M4A => ".m4a",
+            AudioFormat::Flac => ".flac",
+            AudioFormat::Wav => ".wav",
+            AudioFormat::AAC => ".aac",
+        }
+    }
+}
 /// Audio resource representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Audio {
