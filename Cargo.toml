@@ -9,8 +9,9 @@ homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
 [features]
-default = ["bindgen"]
+default = ["bindgen", "ytdlp-ejs"]
 bindgen = ["ytdlp-ejs/bindgen"]
+ytdlp-ejs = ["dep:ytdlp-ejs"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -24,7 +25,7 @@ tokio = { version = "1", features = ["full"] }
 thiserror = "2"
 regex = "1"
 urlencoding = "2"
-ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, features = [
+ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, optional = true, features = [
   "qjs",
 ] }
 anyhow = "1"

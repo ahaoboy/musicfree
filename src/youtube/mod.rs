@@ -1,18 +1,17 @@
 mod android;
 mod common;
-mod web;
 use crate::core::{Audio, Extractor, Platform};
 use crate::error::Result;
 use async_trait::async_trait;
-pub use common::{AudioFormat,   extract_video_id, is_youtube_url};
+pub use common::{AudioFormat, extract_video_id, is_youtube_url};
+#[cfg(feature = "ytdlp-ejs")]
+mod web;
 
 /// Download audio from YouTube
-///
-/// - 默认使用 Android 实现
-/// - 如果启用了 `ejs` feature，则优先尝试 EJS 的实现，失败时回退到 Android
-pub async fn download_audio(url: &str) -> Result<Audio > {
+pub async fn download_audio(url: &str) -> Result<Audio> {
     let video_id = extract_video_id(url)?;
 
+    #[cfg(feature = "ytdlp-ejs")]
     {
         match web::download_audio_ejs(&video_id).await {
             Ok(info) => return Ok(info),
