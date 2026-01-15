@@ -48,7 +48,7 @@ async fn main() {
 
                 // Save audio to file
                 if let Some(binary_data) = audio.binary {
-                    let filename = sanitize_filename::sanitize(&audio.title) + ".m4a";
+                    let filename = sanitize_filename::sanitize(&audio.title);
                     let path = Path::new(".").join(&filename);
 
                     match fs::write(&path, binary_data) {

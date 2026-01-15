@@ -1,4 +1,7 @@
+use reqwest::header::HeaderMap;
+
 use crate::core::{Audio, Extractor, Platform};
+use crate::download::download_binary;
 use crate::error::Result;
 
 /// Direct file extractor: treat http/https URLs as file downloads
@@ -9,24 +12,28 @@ fn is_http_url(url: &str) -> bool {
 }
 
 fn is_audio(url: &str) -> bool {
-    [".mp3"].iter().any(|ext| url.ends_with(ext))
+    [".mp3"]
+        .iter()
+        .any(|ext| url.to_ascii_lowercase().ends_with(ext))
 }
 
 #[async_trait::async_trait]
 impl Extractor for FileExtractor {
     fn matches(&self, url: &str) -> bool {
-        // If URL is HTTP(S) and does not look like a known platform URL, treat as direct file
+        // If URL is HTTP(S) and looks like an audio file
         is_http_url(url) && is_audio(url)
     }
 
     async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
+        let binary = download_binary(url, HeaderMap::new()).await?;
         // Create a minimal Audio struct representing a downloadable file
         let audio = Audio::new(
             // Title can be derived from URL basename
             Self::basename(url),
             url.to_string(),
             Platform::File,
-        );
+        )
+        .with_binary(binary);
         Ok(vec![audio])
     }
 

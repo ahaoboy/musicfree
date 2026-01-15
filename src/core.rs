@@ -9,6 +9,16 @@ pub enum Platform {
     File,
 }
 
+// Audio format representation
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum AudioFormat {
+    Mp3,
+    M4A,
+    Flac,
+    Wav,
+    AAC,
+}
+
 /// Audio resource representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Audio {
@@ -20,6 +30,7 @@ pub struct Audio {
     pub cover: Option<String>,
     pub tags: Vec<String>,
     pub duration: Option<u32>,
+    pub format: Option<AudioFormat>,
     pub platform: Platform,
     pub date: u32,
 }
@@ -36,9 +47,16 @@ impl Audio {
             cover: None,
             tags: Vec::new(),
             duration: None,
+            format: None,
             platform,
             date: chrono::Utc::now().timestamp() as u32,
         }
+    }
+
+    /// Set format
+    pub fn with_format(mut self, format: AudioFormat) -> Self {
+        self.format = Some(format);
+        self
     }
 
     /// Set author
