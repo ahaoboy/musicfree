@@ -19,16 +19,18 @@ pub enum AudioFormat {
     Flac,
     Wav,
     AAC,
+    Ogg,
 }
 
 impl AudioFormat {
-    pub fn extension(&self) ->  &'static str  {
+    pub fn extension(&self) -> &'static str {
         match self {
             AudioFormat::Mp3 => ".mp3",
             AudioFormat::M4A => ".m4a",
             AudioFormat::Flac => ".flac",
             AudioFormat::Wav => ".wav",
             AudioFormat::AAC => ".aac",
+            AudioFormat::Ogg => ".ogg",
         }
     }
 }
