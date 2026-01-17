@@ -40,6 +40,7 @@ pub struct Audio {
     pub title: String,
     pub download_url: String,
     pub local_url: Option<String>,
+    #[serde(skip_serializing)]
     pub binary: Option<Vec<u8>>,
     pub author: Vec<String>,
     pub cover: Option<String>,

@@ -20,6 +20,7 @@ reqwest = { version = "0.12", features = [
   "json",
   "rustls-tls",
   "gzip",
+  "cookies"
 ], default-features = false }
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
@@ -35,6 +36,7 @@ futures-util = "0.3"
 sanitize-filename = "0.6"
 strum = "0.27"
 strum_macros = "0.27"
+url = "2"
 
 [profile.release]
 debug = false

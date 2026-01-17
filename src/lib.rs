@@ -21,7 +21,6 @@ pub async fn extract(url: &str) -> Result<Vec<Audio>> {
         if i.matches(url) {
             return i.extract(url).await;
         }
-        break;
     }
     Err(MusicFreeError::PlatformNotSupported(format!(
         "No extractor found for: {}",

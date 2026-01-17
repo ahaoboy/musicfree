@@ -1,22 +1,28 @@
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
+use reqwest::{
+    Client,
+    header::{HeaderMap, HeaderValue, USER_AGENT},
+};
 use serde::{Serialize, de::DeserializeOwned};
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
 use crate::error::{MusicFreeError, Result};
 
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(600);
-const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_secs(600);
+pub(crate) const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-/// Initialize HTTP client with default configuration
-fn get_http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .timeout(DEFAULT_TIMEOUT)
-        .connect_timeout(DEFAULT_TIMEOUT)
-        .pool_max_idle_per_host(10)
-        .pool_idle_timeout(Duration::from_secs(30))
-        .tcp_keepalive(Duration::from_secs(60))
-        .build()
-        .expect("Failed to create HTTP client")
+pub fn get_http_client() -> &'static Client {
+    static CLIENT: OnceLock<Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(DEFAULT_TIMEOUT)
+            .connect_timeout(DEFAULT_TIMEOUT)
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(Duration::from_secs(30))
+            .tcp_keepalive(Duration::from_secs(60))
+            .cookie_store(true)
+            .build()
+            .expect("Failed to create HTTP client")
+    })
 }
 
 /// Get default headers for requests
@@ -35,7 +41,7 @@ fn create_custom_headers(additional_headers: HeaderMap) -> Result<HeaderMap> {
 
 /// Execute HTTP request with error handling
 async fn execute_request(
-    client: reqwest::Client,
+    client: &reqwest::Client,
     method: reqwest::Method,
     url: &str,
     headers: HeaderMap,
