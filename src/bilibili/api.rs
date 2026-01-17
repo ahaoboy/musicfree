@@ -11,7 +11,28 @@ use url::Url;
 
 /// Resolve short link by following redirects
 async fn resolve_short_link(short_url: &str) -> Result<String> {
-    let response = get_response(short_url, HeaderMap::new()).await?;
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "Accept",
+        HeaderValue::from_static(
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        ),
+    );
+    headers.insert(
+        "Accept-Language",
+        HeaderValue::from_static("zh-CN,zh;q=0.9,en;q=0.8"),
+    );
+    headers.insert(
+        "Accept-Encoding",
+        HeaderValue::from_static("gzip, deflate, br"),
+    );
+    headers.insert("Connection", HeaderValue::from_static("keep-alive"));
+    headers.insert("Upgrade-Insecure-Requests", HeaderValue::from_static("1"));
+    headers.insert(
+        "Referer",
+        HeaderValue::from_static("https://www.bilibili.com/"),
+    );
+    let response = get_response(short_url, headers).await?;
     let final_url = response.url().to_string();
     Ok(final_url)
 }
