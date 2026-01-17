@@ -1,27 +1,17 @@
 use crate::bilibili::core::{PlayUrlResponse, ViewResponse};
-use crate::download::{download_text, get_response};
+use crate::download::{download_text, get_http_client};
 use crate::{
     Audio, Platform,
     download::{download_binary, download_json},
     error::{MusicFreeError, Result},
 };
 use abv::av2bv;
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderValue};
 use url::Url;
 
 /// Resolve short link by following redirects
 async fn resolve_short_link(short_url: &str) -> Result<String> {
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "Accept",
-        HeaderValue::from_static(
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        ),
-    );
-    headers.insert(
-        "Accept-Language",
-        HeaderValue::from_static("zh-CN,zh;q=0.9,en;q=0.8"),
-    );
     headers.insert(
         "Accept-Encoding",
         HeaderValue::from_static("gzip, deflate, br"),
@@ -32,7 +22,24 @@ async fn resolve_short_link(short_url: &str) -> Result<String> {
         "Referer",
         HeaderValue::from_static("https://www.bilibili.com/"),
     );
-    let response = get_response(short_url, headers).await?;
+    headers.insert(ACCEPT, HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"));
+    headers.insert(
+        ACCEPT_LANGUAGE,
+        HeaderValue::from_static("zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"),
+    );
+    headers.insert(
+        "sec-ch-ua",
+        HeaderValue::from_static(
+            "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+        ),
+    );
+    headers.insert(
+        "sec-ch-ua-platform",
+        HeaderValue::from_static("\"Windows\""),
+    );
+
+    let client = get_http_client();
+    let response = client.head(short_url).send().await?;
     let final_url = response.url().to_string();
     Ok(final_url)
 }
@@ -86,6 +93,13 @@ pub async fn extract_bvid(url: &str) -> Result<String> {
                             return Ok(bvid);
                         }
                     }
+
+                    // If still can't extract, try using query parameters
+                    if let Some(query) = resolved_parsed.query()
+                        && let Some(bv_match) = query.split('&').find(|p| p.starts_with("bvid="))
+                            && let Some(bvid) = bv_match.split('=').nth(1) {
+                                return Ok(bvid.to_string());
+                            }
 
                     return Err(MusicFreeError::InvalidUrl(format!(
                         "Cannot extract BV ID from resolved URL: {}",
