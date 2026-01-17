@@ -175,6 +175,52 @@ pub fn is_bilibili_short_url(url: &str) -> bool {
     false
 }
 
+struct AudioInfo {
+    cid: u64,
+    title: String,
+    bvid: String,
+    cover: String,
+    duration: u64,
+    // first_frame: String,
+}
+fn get_info(view: &ViewResponse) -> Vec<AudioInfo> {
+    let mut v = vec![];
+    if let Some(ugc) = &view.data.ugc_season {
+        for i in &ugc.sections {
+            for e in &i.episodes {
+                for p in &e.pages {
+                    v.push(AudioInfo {
+                        bvid: e.bvid.clone(),
+                        title: p.part.clone(),
+                        cid: p.cid,
+                        duration: p.duration,
+                        cover: view.data.pic.clone(), // first_frame: p.first_frame.clone(),
+                    })
+                }
+            }
+        }
+    } else if let &[page] = &view.data.pages.as_slice() {
+        v.push(AudioInfo {
+            bvid: view.data.bvid.clone(),
+            title: view.data.title.clone(),
+            cid: page.cid,
+            duration: page.duration,
+            cover: view.data.pic.clone(), // first_frame: page.first_frame.clone(),
+        })
+    } else {
+        for i in &view.data.pages {
+            v.push(AudioInfo {
+                bvid: view.data.bvid.clone(),
+                title: i.part.clone(),
+                cid: i.cid,
+                duration: i.duration,
+                cover: view.data.pic.clone(), // first_frame: i.first_frame.clone(),
+            })
+        }
+    };
+    v
+}
+
 /// Download audio from Bilibili video
 pub async fn extract(url: &str) -> Result<Vec<Audio>> {
     // Get cookies first
@@ -188,28 +234,15 @@ pub async fn extract(url: &str) -> Result<Vec<Audio>> {
     let bvid = extract_bvid(url).await?;
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
     let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
-
-    let mut v = vec![];
-    if let Some(ugc) = &view.data.ugc_season {
-        for i in &ugc.sections {
-            for e in &i.episodes {
-                for p in &e.pages {
-                    v.push((e.bvid.clone(), p))
-                }
-            }
-        }
-    } else {
-        for i in &view.data.pages {
-            v.push((view.data.bvid.clone(), i))
-        }
-    };
-
+    let v = get_info(&view);
     let mut audios = vec![];
-    for (bvid, p) in v {
+    for info in v {
         let audio_url = format!("https://www.bilibili.com/video/{}", bvid);
-        let id = p.cid.to_string();
-        let audio = Audio::new(id, p.part.clone(), audio_url, Platform::Bilibili)
-            .with_format(crate::core::AudioFormat::M4A);
+        let id = info.cid.to_string();
+        let audio = Audio::new(id, info.title, audio_url, Platform::Bilibili)
+            .with_format(crate::core::AudioFormat::M4A)
+            .with_duration(info.duration)
+            .with_cover(info.cover);
 
         audios.push(audio);
     }
@@ -222,26 +255,13 @@ pub async fn download(audio: &mut Audio) -> Result<()> {
     let quality = Quality::Super;
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
     let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
-    let mut v = vec![];
-    if let Some(ugc) = &view.data.ugc_season {
-        for i in &ugc.sections {
-            for e in &i.episodes {
-                for p in &e.pages {
-                    v.push((e.bvid.clone(), p))
-                }
-            }
-        }
-    } else {
-        for i in &view.data.pages {
-            v.push((view.data.bvid.clone(), i))
-        }
-    };
 
-    let Some((_, p)) = v.iter().find(|i| i.0 == bvid) else {
+    let infos = get_info(&view);
+    let Some(info) = infos.iter().find(|i| i.bvid == bvid) else {
         return Err(MusicFreeError::DownloadFailed("not found bvid".to_string()));
     };
 
-    let cid = p.cid;
+    let cid = info.cid;
 
     let fnval = 16; //dash
     let play_url =

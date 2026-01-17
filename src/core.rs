@@ -60,10 +60,10 @@ pub struct Audio {
     pub author: Vec<String>,
     pub cover: Option<String>,
     pub tags: Vec<String>,
-    pub duration: Option<u32>,
+    pub duration: Option<u64>,
     pub format: Option<AudioFormat>,
     pub platform: Platform,
-    pub date: u32,
+    pub date: u64,
 }
 
 impl Audio {
@@ -81,7 +81,7 @@ impl Audio {
             duration: None,
             format: None,
             platform,
-            date: chrono::Utc::now().timestamp() as u32,
+            date: chrono::Utc::now().timestamp() as u64,
         }
     }
 
@@ -110,7 +110,7 @@ impl Audio {
     }
 
     /// Set duration in seconds
-    pub fn with_duration(mut self, duration: u32) -> Self {
+    pub fn with_duration(mut self, duration: u64) -> Self {
         self.duration = Some(duration);
         self
     }

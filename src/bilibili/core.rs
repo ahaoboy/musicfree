@@ -9,18 +9,29 @@ pub struct ViewResponse {
 pub struct ViewData {
     pub cid: u64,
     pub bvid: String,
+    pub title: String,
     pub aid: Option<u64>,
     pub videos: u64,
     pub desc: String,
     pub duration: u64,
     pub pages: Vec<EpisodePage>,
     pub ugc_season: Option<UgcSesson>,
+    pub owner: Owner,
+    pub pic: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Owner {
+    pub mid: u64,
+    pub name: String,
+    pub face: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct EpisodePage {
     pub cid: u64,
     pub part: String,
+    pub first_frame: String,
     pub duration: u64,
 }
 

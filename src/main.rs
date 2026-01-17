@@ -103,11 +103,15 @@ fn list_available_formats(audios: &[musicfree::core::Audio]) {
             println!("  Author: {}", audio.author.join(", "));
         }
 
+        if let Some(cover_url) = &audio.cover {
+            println!("  Cover: {}", cover_url);
+        }
+
         println!();
     }
 }
 
-fn format_duration(seconds: u32) -> String {
+fn format_duration(seconds: u64) -> String {
     let minutes = seconds / 60;
     let secs = seconds % 60;
     format!("{}:{:02}", minutes, secs)
@@ -134,6 +138,10 @@ fn display_audio_info(audios: &[musicfree::core::Audio]) {
 
         if !audio.author.is_empty() {
             println!("    Author: {}", audio.author.join(", "));
+        }
+
+        if let Some(cover_url) = &audio.cover {
+            println!("    Cover: {}", cover_url);
         }
 
         println!();
