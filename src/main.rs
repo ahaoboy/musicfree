@@ -1,5 +1,5 @@
 use clap::Parser;
-use musicfree::{EXTRACTORS, extract};
+use musicfree::extract;
 use std::fs;
 use std::path::Path;
 
@@ -172,14 +172,9 @@ async fn download_audio(
     output_name: &Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Find the appropriate extractor and download binary data
-    for &extractor in EXTRACTORS {
-        if extractor.matches(&audio.download_url) {
-            extractor.download(&mut audio).await?;
-            break;
-        }
-    }
+    audio.platform.extractor().download(&mut audio).await?;
 
-    if let Some(bin) =  &audio.binary  {
+    if let Some(bin) = &audio.binary {
         let filename = get_filename(&audio, output_name);
         let base_path = if let Some(dir) = output_dir {
             // Create directory if it doesn't exist
@@ -225,15 +220,16 @@ async fn main() {
 
     // Handle format selection if specified
     if let Some(ref format_str) = args.format
-        && let Some(target_format) = parse_format(format_str) {
-            // Filter audios by requested format (if they have format info)
-            audios.retain(|audio| audio.format.as_ref().is_none_or(|f| f == &target_format));
+        && let Some(target_format) = parse_format(format_str)
+    {
+        // Filter audios by requested format (if they have format info)
+        audios.retain(|audio| audio.format.as_ref().is_none_or(|f| f == &target_format));
 
-            if audios.is_empty() {
-                println!("No audio files found with format: {:?}", target_format);
-                return;
-            }
+        if audios.is_empty() {
+            println!("No audio files found with format: {:?}", target_format);
+            return;
         }
+    }
 
     // Handle --list-formats option
     if args.list_formats {

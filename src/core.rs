@@ -1,5 +1,7 @@
-use crate::download::download_binary;
+use crate::FileExtractor;
 use crate::error::Result;
+use crate::youtube::YoutubeExtractor;
+use crate::{BilibiliExtractor, download::download_binary};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 pub use strum::IntoEnumIterator;
@@ -11,6 +13,16 @@ pub enum Platform {
     Bilibili,
     Youtube,
     File,
+}
+
+impl Platform {
+    pub fn extractor(&self) -> &'static dyn Extractor {
+        match self {
+            Platform::Bilibili => &BilibiliExtractor,
+            Platform::Youtube => &YoutubeExtractor,
+            Platform::File => &FileExtractor,
+        }
+    }
 }
 
 // Audio format representation
