@@ -1,4 +1,5 @@
 use crate::bilibili::core::{PlayUrlResponse, ViewResponse};
+use crate::core::Quality;
 use crate::download::{download_text, get_http_client};
 use crate::{
     Audio, Platform,
@@ -97,9 +98,10 @@ pub async fn extract_bvid(url: &str) -> Result<String> {
                     // If still can't extract, try using query parameters
                     if let Some(query) = resolved_parsed.query()
                         && let Some(bv_match) = query.split('&').find(|p| p.starts_with("bvid="))
-                            && let Some(bvid) = bv_match.split('=').nth(1) {
-                                return Ok(bvid.to_string());
-                            }
+                        && let Some(bvid) = bv_match.split('=').nth(1)
+                    {
+                        return Ok(bvid.to_string());
+                    }
 
                     return Err(MusicFreeError::InvalidUrl(format!(
                         "Cannot extract BV ID from resolved URL: {}",
@@ -173,15 +175,8 @@ pub fn is_bilibili_short_url(url: &str) -> bool {
     false
 }
 
-pub enum Quality {
-    Low,
-    Standard,
-    High,
-    Super,
-}
-
 /// Download audio from Bilibili video
-pub async fn download_audio(url: &str) -> Result<Vec<Audio>> {
+pub async fn extract(url: &str) -> Result<Vec<Audio>> {
     // Get cookies first
     download_text("https://www.bilibili.com", HeaderMap::new()).await?;
     download_text(
@@ -191,9 +186,6 @@ pub async fn download_audio(url: &str) -> Result<Vec<Audio>> {
     .await?;
 
     let bvid = extract_bvid(url).await?;
-
-    let quality = Quality::Super;
-
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
     let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
 
@@ -214,63 +206,85 @@ pub async fn download_audio(url: &str) -> Result<Vec<Audio>> {
 
     let mut audios = vec![];
     for (bvid, p) in v {
-        let cid = p.cid;
-
-        let fnval = 16; //dash
-        let play_url = format!(
-            "https://api.bilibili.com/x/player/playurl?bvid={bvid}&cid={cid}&fnval={fnval}"
-        );
-
-        let resp: PlayUrlResponse = download_json(&play_url, HeaderMap::new()).await?;
-        let play_data = resp.data;
-        let Some(media_url) = (if let Some(dash) = play_data.dash {
-            let mut audios = dash.audio;
-            audios.sort_by_key(|a| a.bandwidth);
-
-            let idx = match quality {
-                Quality::Low => 0,
-                Quality::Standard => 1,
-                Quality::High => 2,
-                Quality::Super => 3,
-            };
-
-            audios
-                .get(idx)
-                .or_else(|| audios.last())
-                .map(|i| i.base_url.clone())
-                .clone()
-        } else {
-            play_data
-                .durl
-                .and_then(|d| d.first().map(|i| i.url.clone()))
-        }) else {
-            continue;
-        };
-        let referer = format!("https://www.bilibili.com/video/{}", bvid);
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "user-agent",
-            HeaderValue::from_static(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            ),
-        );
-        headers.insert("accept", HeaderValue::from_static("*/*"));
-        headers.insert(
-            "accept-encoding",
-            HeaderValue::from_static("gzip, deflate, br"),
-        );
-        headers.insert("connection", HeaderValue::from_static("keep-alive"));
-        headers.insert("referer", HeaderValue::from_str(&referer).unwrap());
-        headers.insert("range", HeaderValue::from_static("bytes=0-"));
-
+        let audio_url = format!("https://www.bilibili.com/video/{}", bvid);
         let id = p.cid.to_string();
-        let bin = download_binary(&media_url, headers).await?;
-        let audio = Audio::new(id, p.part.clone(), url.to_string(), Platform::Bilibili)
-            .with_binary(bin)
+        let audio = Audio::new(id, p.part.clone(), audio_url, Platform::Bilibili)
             .with_format(crate::core::AudioFormat::M4A);
 
         audios.push(audio);
     }
 
     Ok(audios)
+}
+
+pub async fn download(audio: &mut Audio) -> Result<()> {
+    let bvid = extract_bvid(&audio.download_url).await?;
+    let quality = Quality::Super;
+    let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
+    let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
+    let mut v = vec![];
+    if let Some(ugc) = &view.data.ugc_season {
+        for i in &ugc.sections {
+            for e in &i.episodes {
+                for p in &e.pages {
+                    v.push((e.bvid.clone(), p))
+                }
+            }
+        }
+    } else {
+        for i in &view.data.pages {
+            v.push((view.data.bvid.clone(), i))
+        }
+    };
+
+    let Some((_, p)) = v.iter().find(|i| i.0 == bvid) else {
+        return Err(MusicFreeError::DownloadFailed("not found bvid".to_string()));
+    };
+
+    let cid = p.cid;
+
+    let fnval = 16; //dash
+    let play_url =
+        format!("https://api.bilibili.com/x/player/playurl?bvid={bvid}&cid={cid}&fnval={fnval}");
+
+    let resp: PlayUrlResponse = download_json(&play_url, HeaderMap::new()).await?;
+    let play_data = resp.data;
+    let Some(media_url) = (if let Some(dash) = play_data.dash {
+        let mut audios = dash.audio;
+        audios.sort_by_key(|a| a.bandwidth);
+
+        let idx = match quality {
+            Quality::Low => 0,
+            Quality::Standard => 1,
+            Quality::High => 2,
+            Quality::Super => 3,
+        };
+
+        audios
+            .get(idx)
+            .or_else(|| audios.last())
+            .map(|i| i.base_url.clone())
+            .clone()
+    } else {
+        play_data
+            .durl
+            .and_then(|d| d.first().map(|i| i.url.clone()))
+    }) else {
+        return Err(MusicFreeError::DownloadFailed(
+            "not found media_url".to_string(),
+        ));
+    };
+    let audio_url = format!("https://www.bilibili.com/video/{}", bvid);
+    let mut headers = HeaderMap::new();
+    headers.insert("accept", HeaderValue::from_static("*/*"));
+    headers.insert(
+        "accept-encoding",
+        HeaderValue::from_static("gzip, deflate, br"),
+    );
+    headers.insert("connection", HeaderValue::from_static("keep-alive"));
+    headers.insert("referer", HeaderValue::from_str(&audio_url).unwrap());
+    headers.insert("range", HeaderValue::from_static("bytes=0-"));
+    let bin = download_binary(&media_url, headers).await?;
+    audio.binary = Some(bin);
+    Ok(())
 }

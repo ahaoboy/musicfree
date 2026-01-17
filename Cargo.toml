@@ -9,9 +9,10 @@ homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
 [features]
-default = ["bindgen", "ytdlp-ejs"]
+default = ["bindgen", "ytdlp-ejs", "cli"]
 bindgen = ["ytdlp-ejs/bindgen"]
 ytdlp-ejs = ["dep:ytdlp-ejs"]
+cli = ["dep:clap"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -20,7 +21,7 @@ reqwest = { version = "0.12", features = [
   "json",
   "rustls-tls",
   "gzip",
-  "cookies"
+  "cookies",
 ], default-features = false }
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
@@ -36,6 +37,7 @@ futures-util = "0.3"
 sanitize-filename = "0.6"
 strum = "0.27"
 strum_macros = "0.27"
+clap = { version = "4", features = ["derive"], optional = true }
 url = "2"
 md5 = "*"
 abv = "0.3"
@@ -52,3 +54,7 @@ debug = true
 lto = false
 strip = false
 inherits = 'release'
+
+[[bin]]
+required-features = ["cli"]
+name = "musicfree"

@@ -51,3 +51,4 @@ jobs:
           RUSTFLAGS: ${{ matrix.RUSTFLAGS }}
           tag: nightly
           allowUpdates: true
+          features: cli

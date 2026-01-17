@@ -1,4 +1,4 @@
-use crate::bilibili::api::{download_audio, is_bilibili_url};
+use crate::bilibili::api::{download, extract, is_bilibili_url};
 use crate::core::{Audio, Extractor, Platform};
 use crate::error::Result;
 use async_trait::async_trait;
@@ -16,11 +16,14 @@ impl Extractor for BilibiliExtractor {
     }
 
     async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
-        let audio = download_audio(url).await?;
-        Ok(audio)
+        extract(url).await
     }
 
     fn platform(&self) -> Platform {
         Platform::Bilibili
+    }
+
+    async fn download(&self, audio: &mut Audio) -> Result<()> {
+        download(audio).await
     }
 }

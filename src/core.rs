@@ -1,4 +1,6 @@
+use crate::download::download_binary;
 use crate::error::Result;
+use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 pub use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -122,6 +124,15 @@ pub struct PlayList {
     pub date: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum Quality {
+    Low,
+    Standard,
+    High,
+    #[default]
+    Super,
+}
+
 impl PlayList {
     /// Create a new playlist
     pub fn new(title: String) -> Self {
@@ -148,6 +159,14 @@ pub trait Extractor: Send + Sync {
     /// Extract audio resources from URL
     /// Returns a Vec<Audio> since a URL might contain multiple audio resources
     async fn extract(&self, url: &str) -> Result<Vec<Audio>>;
+
+    /// Download audio binary data and populate the binary field
+    /// Default implementation uses the download_url to fetch binary data
+    async fn download(&self, audio: &mut Audio) -> Result<()> {
+        let binary = download_binary(&audio.download_url, HeaderMap::new()).await?;
+        audio.binary = Some(binary);
+        Ok(())
+    }
 
     /// Get platform identifier
     fn platform(&self) -> Platform;

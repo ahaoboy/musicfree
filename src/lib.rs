@@ -12,7 +12,7 @@ pub use file::FileExtractor;
 mod utils;
 use crate::youtube::YoutubeExtractor;
 
-static EXTRACTORS: &[&dyn Extractor] = &[&BilibiliExtractor, &YoutubeExtractor, &FileExtractor];
+pub static EXTRACTORS: &[&dyn Extractor] = &[&BilibiliExtractor, &YoutubeExtractor, &FileExtractor];
 
 /// Extract audio from URL (auto-detect platform) with HTTP fallback
 pub async fn extract(url: &str) -> Result<Vec<Audio>> {
