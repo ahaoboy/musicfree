@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::download::post_json;
 use crate::error::{MusicFreeError, Result};
+use crate::utils::get_md5;
 use crate::{Audio, Platform};
 
 use super::common::{
@@ -196,7 +197,13 @@ pub async fn download_audio_android(video_id: &str) -> Result<Audio> {
         .ok_or(MusicFreeError::AudioNotFound)?;
 
     let data = download_audio_data(&format.url).await?;
-    let audio = Audio::new(title, format.url.to_string(), Platform::Youtube).with_binary(data);
+    let audio = Audio::new(
+        get_md5(&format.url),
+        title,
+        format.url.to_string(),
+        Platform::Youtube,
+    )
+    .with_binary(data);
 
     Ok(audio)
 }

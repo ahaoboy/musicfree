@@ -9,7 +9,7 @@ pub use bilibili::BilibiliExtractor;
 pub use core::{Audio, Extractor, Platform, PlayList};
 use error::{MusicFreeError, Result};
 pub use file::FileExtractor;
-
+mod utils;
 use crate::youtube::YoutubeExtractor;
 
 static EXTRACTORS: &[&dyn Extractor] = &[&BilibiliExtractor, &YoutubeExtractor, &FileExtractor];

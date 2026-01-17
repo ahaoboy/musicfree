@@ -121,8 +121,9 @@ pub async fn download_audio(url: &str) -> Result<Vec<Audio>> {
         headers.insert("referer", HeaderValue::from_str(&referer).unwrap());
         headers.insert("range", HeaderValue::from_static("bytes=0-"));
 
+        let id = p.cid.to_string();
         let bin = download_binary(&media_url, headers).await?;
-        let audio = Audio::new(p.part.clone(), url.to_string(), Platform::Bilibili)
+        let audio = Audio::new(id, p.part.clone(), url.to_string(), Platform::Bilibili)
             .with_binary(bin)
             .with_format(crate::core::AudioFormat::M4A);
 

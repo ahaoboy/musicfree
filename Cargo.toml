@@ -37,6 +37,7 @@ sanitize-filename = "0.6"
 strum = "0.27"
 strum_macros = "0.27"
 url = "2"
+md5 = "*"
 
 [profile.release]
 debug = false

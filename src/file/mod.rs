@@ -1,6 +1,7 @@
 use crate::core::{Audio, AudioFormat, Extractor, Platform};
 use crate::download::download_binary;
 use crate::error::Result;
+use crate::utils::get_md5;
 use reqwest::header::HeaderMap;
 pub use strum::IntoEnumIterator;
 
@@ -25,8 +26,10 @@ impl Extractor for FileExtractor {
     async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
         let binary = download_binary(url, HeaderMap::new()).await?;
         let fmt = is_audio(url).unwrap_or(AudioFormat::Mp3);
+        let id = get_md5(&url);
         // Create a minimal Audio struct representing a downloadable file
         let audio = Audio::new(
+            id,
             // Title can be derived from URL basename
             Self::basename(url).replace(fmt.extension(), ""),
             url.to_string(),

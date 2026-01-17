@@ -37,6 +37,7 @@ impl AudioFormat {
 /// Audio resource representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Audio {
+    pub id: String,
     pub title: String,
     pub download_url: String,
     pub local_url: Option<String>,
@@ -53,8 +54,9 @@ pub struct Audio {
 
 impl Audio {
     /// Create a new audio instance
-    pub fn new(title: String, download_url: String, platform: Platform) -> Self {
+    pub fn new(id: String, title: String, download_url: String, platform: Platform) -> Self {
         Self {
+            id,
             title,
             download_url,
             local_url: None,
