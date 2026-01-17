@@ -194,7 +194,7 @@ fn get_info(view: &ViewResponse) -> Vec<AudioInfo> {
                         title: p.part.clone(),
                         cid: p.cid,
                         duration: p.duration,
-                        cover: view.data.pic.clone(), // first_frame: p.first_frame.clone(),
+                        cover: e.arc.pic.clone(),
                     })
                 }
             }
@@ -205,7 +205,7 @@ fn get_info(view: &ViewResponse) -> Vec<AudioInfo> {
             title: view.data.title.clone(),
             cid: page.cid,
             duration: page.duration,
-            cover: view.data.pic.clone(), // first_frame: page.first_frame.clone(),
+            cover: view.data.pic.clone(),
         })
     } else {
         for i in &view.data.pages {
@@ -214,7 +214,7 @@ fn get_info(view: &ViewResponse) -> Vec<AudioInfo> {
                 title: i.part.clone(),
                 cid: i.cid,
                 duration: i.duration,
-                cover: view.data.pic.clone(), // first_frame: i.first_frame.clone(),
+                cover: view.data.pic.clone(),
             })
         }
     };

@@ -31,10 +31,14 @@ pub struct Owner {
 pub struct EpisodePage {
     pub cid: u64,
     pub part: String,
-    pub first_frame: String,
     pub duration: u64,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct EpisodeArc {
+    pub title: String,
+    pub pic: String,
+}
 #[derive(Debug, Deserialize)]
 pub struct Episode {
     pub id: u64,
@@ -44,6 +48,7 @@ pub struct Episode {
     pub page: EpisodePage,
     pub pages: Vec<EpisodePage>,
     pub bvid: String,
+    pub arc: EpisodeArc,
 }
 
 #[derive(Debug, Deserialize)]

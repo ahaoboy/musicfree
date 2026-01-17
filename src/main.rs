@@ -102,7 +102,6 @@ fn list_available_formats(audios: &[musicfree::core::Audio]) {
         if !audio.author.is_empty() {
             println!("  Author: {}", audio.author.join(", "));
         }
-
         if let Some(cover_url) = &audio.cover {
             println!("  Cover: {}", cover_url);
         }
@@ -131,6 +130,7 @@ fn display_audio_info(audios: &[musicfree::core::Audio]) {
         println!("[{}] {}", index + 1, audio.title);
         println!("    Platform: {:?}", audio.platform);
         println!("    Format: {}", format_display_format(&audio.format));
+        println!("    URL: {}", audio.download_url);
 
         if let Some(duration) = audio.duration {
             println!("    Duration: {}", format_duration(duration));
