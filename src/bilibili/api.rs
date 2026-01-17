@@ -1,24 +1,85 @@
 use crate::bilibili::core::{PlayUrlResponse, ViewResponse};
-use crate::download::download_text;
+use crate::download::{download_text, get_response};
 use crate::{
     Audio, Platform,
     download::{download_binary, download_json},
     error::{MusicFreeError, Result},
 };
+use abv::av2bv;
 use reqwest::header::{HeaderMap, HeaderValue};
+use url::Url;
+
+/// Resolve short link by following redirects
+async fn resolve_short_link(short_url: &str) -> Result<String> {
+    let response = get_response(short_url, HeaderMap::new()).await?;
+    let final_url = response.url().to_string();
+    Ok(final_url)
+}
 
 /// Extract BV ID from Bilibili URL
-pub fn extract_bvid(url: &str) -> Result<String> {
+pub async fn extract_bvid(url: &str) -> Result<String> {
     // Direct BV ID
     if url.starts_with("BV") && url.len() == 12 {
         return Ok(url[..12].to_string());
     }
 
-    // URL patterns: bilibili.com/video/BVxxxxx
-    if let Some(pos) = url.find("BV") {
-        let bvid: String = url[pos..].chars().take(12).collect();
-        if bvid.len() == 12 {
-            return Ok(bvid);
+    // Parse URL to extract path
+    if let Ok(parsed_url) = Url::parse(url) {
+        let path = parsed_url.path();
+
+        // Handle short URLs (b23.tv)
+        if parsed_url.domain() == Some("b23.tv") {
+            let path_segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+
+            for segment in path_segments {
+                if segment.is_empty() {
+                    continue;
+                }
+
+                // Check if it's a BV short link
+                if segment.starts_with("BV") && segment.len() == 12 {
+                    return Ok(segment.to_string());
+                }
+
+                // Check if it's an AV short link
+                if segment.starts_with("av")
+                    && let Ok(av_id) = segment[2..].parse::<u64>()
+                    && let Ok(bvid) = av2bv(av_id)
+                {
+                    return Ok(bvid);
+                }
+
+                // Check if it's a general short code (7 alphanumeric chars)
+                if segment.len() == 7 && segment.chars().all(|c| c.is_alphanumeric()) {
+                    // Resolve the short link by making HTTP request
+                    let resolved_url = resolve_short_link(url).await?;
+                    // Use a non-recursive approach: try to extract from the resolved URL directly
+                    let resolved_parsed = Url::parse(&resolved_url).map_err(|e| {
+                        MusicFreeError::InvalidUrl(format!("Failed to parse resolved URL: {}", e))
+                    })?;
+                    let resolved_path = resolved_parsed.path();
+
+                    if let Some(pos) = resolved_path.find("BV") {
+                        let bvid: String = resolved_path[pos..].chars().take(12).collect();
+                        if bvid.len() == 12 {
+                            return Ok(bvid);
+                        }
+                    }
+
+                    return Err(MusicFreeError::InvalidUrl(format!(
+                        "Cannot extract BV ID from resolved URL: {}",
+                        resolved_url
+                    )));
+                }
+            }
+        }
+
+        // Handle regular bilibili.com URLs
+        if let Some(pos) = path.find("BV") {
+            let bvid: String = path[pos..].chars().take(12).collect();
+            if bvid.len() == 12 {
+                return Ok(bvid);
+            }
         }
     }
 
@@ -28,9 +89,53 @@ pub fn extract_bvid(url: &str) -> Result<String> {
     )))
 }
 
-/// Check if URL is a Bilibili link
 pub fn is_bilibili_url(url: &str) -> bool {
-    url.contains("bilibili.com") || (url.starts_with("BV") && url.len() == 12)
+    // Direct BV ID
+    if url.starts_with("BV") && url.len() == 12 {
+        return true;
+    }
+
+    // Parse URL for proper domain validation
+    if let Ok(parsed_url) = Url::parse(url) {
+        match parsed_url.domain() {
+            Some(domain) => {
+                // Check for official bilibili domains
+                domain == "bilibili.com"
+                    || domain == "www.bilibili.com"
+                    || domain == "b23.tv"
+                    || domain == "m.bilibili.com"
+            }
+            None => false,
+        }
+    } else {
+        false
+    }
+}
+
+pub fn is_bilibili_short_url(url: &str) -> bool {
+    if let Ok(parsed_url) = Url::parse(url)
+        && let Some(domain) = parsed_url.domain()
+        && domain == "b23.tv"
+    {
+        let path = parsed_url.path().trim_start_matches('/');
+
+        // Check for valid short link patterns
+        // General short code: 7 alphanumeric characters
+        if path.len() == 7 && path.chars().all(|c| c.is_alphanumeric()) {
+            return true;
+        }
+
+        // AV short link: av + numeric ID
+        if path.starts_with("av") && path[2..].chars().all(|c| c.is_numeric()) {
+            return true;
+        }
+
+        // BV short link: BV + 12 characters
+        if path.starts_with("BV") && path.len() >= 12 {
+            return true;
+        }
+    }
+    false
 }
 
 pub enum Quality {
@@ -42,13 +147,15 @@ pub enum Quality {
 
 /// Download audio from Bilibili video
 pub async fn download_audio(url: &str) -> Result<Vec<Audio>> {
-    let bvid = extract_bvid(url)?;
+    // Get cookies first
     download_text("https://www.bilibili.com", HeaderMap::new()).await?;
     download_text(
         "https://api.bilibili.com/x/frontend/finger/spi",
         HeaderMap::new(),
     )
     .await?;
+
+    let bvid = extract_bvid(url).await?;
 
     let quality = Quality::Super;
 
