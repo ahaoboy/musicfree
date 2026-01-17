@@ -42,9 +42,9 @@ jobs:
       - name: run
         run: |
           # bilibili
+          cargo run -q "https://b23.tv/vBnRYHM"
           cargo run -q "https://www.bilibili.com/video/BV1aAV7zHEhJ"
           cargo run -q "BV1UG4y1z7iq"
-          cargo run -q "https://b23.tv/vBnRYHM"
 
           # youtube
           cargo run -q "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
