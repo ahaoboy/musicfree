@@ -50,41 +50,41 @@ jobs:
             "https://www.bilibili.com/video/BV1aAV7zHEhJ"
             "BV1UG4y1z7iq"
           )
-          
+
           declare -a YOUTUBE_URLS=(
             "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
             "https://www.youtube.com/watch?v=E2Rj2gQAyPA"
           )
-          
+
           echo "=== Processing Bilibili URLs ==="
           mkdir -p bilibili
           mkdir -p bilibili/covers
-          
+
           for url in "${BILIBILI_URLS[@]}"; do
             echo "Downloading from: $url"
-            if timeout 300 cargo run -q -d "./bilibili" -c --cover-dir "./bilibili/covers" "$url"; then
+            if timeout 300 cargo run -q -- -d "./bilibili" -c --cover-dir "./bilibili/covers" "$url"; then
               echo "✓ Successfully downloaded: $url"
             else
               echo "✗ Failed or timeout for: $url"
             fi
             echo "---"
           done
-          
+
           echo ""
           echo "=== Processing YouTube URLs ==="
           mkdir -p youtube
           mkdir -p youtube/covers
-          
+
           for url in "${YOUTUBE_URLS[@]}"; do
             echo "Downloading from: $url"
-            if timeout 300 cargo run -q -d "./youtube" -c --cover-dir "./youtube/covers" "$url"; then
+            if timeout 300 cargo run -q -- -d "./youtube" -c --cover-dir "./youtube/covers" "$url"; then
               echo "✓ Successfully downloaded: $url"
             else
               echo "✗ Failed or timeout for: $url"
             fi
             echo "---"
           done
-          
+
           echo ""
           echo "=== Download Summary ==="
           echo "Bilibili files:"
