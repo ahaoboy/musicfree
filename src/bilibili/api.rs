@@ -250,8 +250,8 @@ pub async fn extract(url: &str) -> Result<Vec<Audio>> {
     Ok(audios)
 }
 
-pub async fn download(audio: &mut Audio) -> Result<()> {
-    let bvid = extract_bvid(&audio.download_url).await?;
+pub async fn download(url: &str) -> Result<Vec<u8>> {
+    let bvid = extract_bvid(url).await?;
     let quality = Quality::Super;
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
     let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
@@ -305,6 +305,5 @@ pub async fn download(audio: &mut Audio) -> Result<()> {
     headers.insert("referer", HeaderValue::from_str(&audio_url).unwrap());
     headers.insert("range", HeaderValue::from_static("bytes=0-"));
     let bin = download_binary(&media_url, headers).await?;
-    audio.binary = Some(bin);
-    Ok(())
+    Ok(bin)
 }

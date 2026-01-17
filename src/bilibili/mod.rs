@@ -23,7 +23,7 @@ impl Extractor for BilibiliExtractor {
         Platform::Bilibili
     }
 
-    async fn download(&self, audio: &mut Audio) -> Result<()> {
-        download(audio).await
+    async fn download(&self, url: &str) -> Result<Vec<u8>> {
+        download(url).await
     }
 }

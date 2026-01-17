@@ -235,14 +235,13 @@ pub async fn download_audio_ejs(video_id: &str) -> Result<Audio> {
         .ok_or(MusicFreeError::AudioNotFound)?;
 
     // Step 8: Download audio
-    let data = download_audio_data(&format.url).await?;
+    let _data = download_audio_data(&format.url).await?;
     let audio = Audio::new(
         get_md5(&format.url),
         title,
         format.url.to_string(),
         Platform::Youtube,
-    )
-    .with_binary(data);
+    );
 
     Ok(audio)
 }

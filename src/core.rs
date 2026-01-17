@@ -55,8 +55,6 @@ pub struct Audio {
     pub title: String,
     pub download_url: String,
     pub local_url: Option<String>,
-    #[serde(skip_serializing)]
-    pub binary: Option<Vec<u8>>,
     pub author: Vec<String>,
     pub cover: Option<String>,
     pub tags: Vec<String>,
@@ -74,7 +72,6 @@ impl Audio {
             title,
             download_url,
             local_url: None,
-            binary: None,
             author: Vec::new(),
             cover: None,
             tags: Vec::new(),
@@ -112,12 +109,6 @@ impl Audio {
     /// Set duration in seconds
     pub fn with_duration(mut self, duration: u64) -> Self {
         self.duration = Some(duration);
-        self
-    }
-
-    /// Set binary data
-    pub fn with_binary(mut self, binary: Vec<u8>) -> Self {
-        self.binary = Some(binary);
         self
     }
 
@@ -174,10 +165,14 @@ pub trait Extractor: Send + Sync {
 
     /// Download audio binary data and populate the binary field
     /// Default implementation uses the download_url to fetch binary data
-    async fn download(&self, audio: &mut Audio) -> Result<()> {
-        let binary = download_binary(&audio.download_url, HeaderMap::new()).await?;
-        audio.binary = Some(binary);
-        Ok(())
+    async fn download(&self, url: &str) -> Result<Vec<u8>> {
+        let binary = download_binary(url, HeaderMap::new()).await?;
+        Ok(binary)
+    }
+
+    async fn download_cover(&self, url: &str) -> Result<Vec<u8>> {
+        let binary = download_binary(url, HeaderMap::new()).await?;
+        Ok(binary)
     }
 
     /// Get platform identifier

@@ -15,7 +15,9 @@ use std::path::Path;
       musicfree -i https://example.com/video             # Show info only\n\
       musicfree -f mp3 https://example.com/video         # Download as MP3\n\
       musicfree -d ./music https://example.com/video     # Download to directory\n\
-      musicfree -o song.mp3 https://example.com/video    # Custom filename"
+      musicfree -o song.mp3 https://example.com/video    # Custom filename\n\
+      musicfree -c https://example.com/video            # Download audio + cover\n\
+      musicfree -c --cover-dir ./covers https://example.com/video  # Custom cover dir"
 )]
 struct Args {
     /// URL to extract audio from
@@ -61,6 +63,21 @@ struct Args {
         help = "Audio format to download (mp3, m4a, flac, wav, aac, ogg)"
     )]
     format: Option<String>,
+
+    /// Download cover/artwork image along with audio
+    #[arg(
+        short = 'c',
+        long = "download-cover",
+        help = "Download cover/artwork image along with audio"
+    )]
+    download_cover: bool,
+
+    /// Directory to save cover images (default: same as audio directory)
+    #[arg(
+        long = "cover-dir",
+        help = "Directory to save cover images (default: same as audio directory)"
+    )]
+    cover_dir: Option<String>,
 }
 
 fn parse_format(format_str: &str) -> Option<musicfree::core::AudioFormat> {
@@ -175,15 +192,24 @@ fn get_filename(audio: &musicfree::core::Audio, output_name: &Option<String>) ->
 }
 
 async fn download_audio(
-    mut audio: musicfree::core::Audio,
+    audio: &musicfree::core::Audio,
     output_dir: &Option<String>,
     output_name: &Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Find the appropriate extractor and download binary data
-    audio.platform.extractor().download(&mut audio).await?;
+    audio
+        .platform
+        .extractor()
+        .download(&audio.download_url)
+        .await?;
 
-    if let Some(bin) = &audio.binary {
-        let filename = get_filename(&audio, output_name);
+    if let Ok(bin) = audio
+        .platform
+        .extractor()
+        .download(&audio.download_url)
+        .await
+    {
+        let filename = get_filename(audio, output_name);
         let base_path = if let Some(dir) = output_dir {
             // Create directory if it doesn't exist
             fs::create_dir_all(dir)?;
@@ -201,6 +227,55 @@ async fn download_audio(
         }
     } else {
         println!("✗ No binary data available for download");
+    }
+
+    Ok(())
+}
+
+fn get_cover_filename(audio: &musicfree::core::Audio, output_name: &Option<String>) -> String {
+    if let Some(name) = output_name {
+        // If output name is provided, use it without changing extension
+        let base_name = Path::new(name)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("cover");
+        format!("{}.jpg", base_name)
+    } else {
+        // Use sanitized title + .jpg extension
+        format!("{}_cover.jpg", sanitize_filename::sanitize(&audio.title))
+    }
+}
+
+async fn download_cover(
+    audio: &musicfree::core::Audio,
+    cover_dir: &Option<String>,
+    output_name: &Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(cover_url) = &audio.cover {
+        println!("Downloading cover from: {}", cover_url);
+
+        // Download cover binary data
+        let cover_data = audio.platform.extractor().download_cover(cover_url).await?;
+
+        let cover_filename = get_cover_filename(audio, output_name);
+
+        let base_path = if let Some(dir) = cover_dir {
+            // Create directory if it doesn't exist
+            fs::create_dir_all(dir)?;
+            Path::new(dir).join(&cover_filename)
+        } else {
+            Path::new(".").join(&cover_filename)
+        };
+
+        match fs::write(&base_path, cover_data) {
+            Ok(_) => println!("✓ Cover saved to: {}", base_path.display()),
+            Err(e) => {
+                eprintln!("✗ Error saving cover: {}", e);
+                return Err(e.into());
+            }
+        }
+    } else {
+        println!("✗ No cover available for this audio");
     }
 
     Ok(())
@@ -269,10 +344,17 @@ async fn main() {
     for (index, audio) in audios.into_iter().enumerate() {
         println!("Downloading [{}]: {}", index + 1, audio.title);
 
-        if let Err(e) = download_audio(audio, &args.output_dir, &args.output_name).await {
+        if let Err(e) = download_audio(&audio, &args.output_dir, &args.output_name).await {
             eprintln!("Failed to download audio [{}]: {}", index + 1, e);
             std::process::exit(1);
         }
+
+        // Download cover if requested and available
+        if args.download_cover
+            && let Err(e) = download_cover(&audio, &args.cover_dir, &args.output_name).await {
+                eprintln!("Failed to download cover for [{}]: {}", index + 1, e);
+                // Don't exit on cover download failure, just continue
+            }
 
         if index < audios_len - 1 {
             println!();
