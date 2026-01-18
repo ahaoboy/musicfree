@@ -124,16 +124,18 @@ impl Audio {
 pub struct Playlist {
     pub title: String,
     pub audios: Vec<Audio>,
-    pub cover: Option<String>
+    pub cover: Option<String>,
+    pub platform: Platform,
 }
 
 impl Playlist {
     /// Create a new playlist
-    pub fn new(title: String) -> Self {
+    pub fn new(title: String, platform: Platform) -> Self {
         Self {
             title,
             audios: Vec::new(),
             cover: None,
+            platform,
         }
     }
 }
@@ -146,7 +148,6 @@ pub enum Quality {
     #[default]
     Super,
 }
-
 
 /// Trait for extracting audio from different platforms
 #[async_trait::async_trait]

@@ -48,6 +48,7 @@ impl Extractor for YoutubeExtractor {
             title: audio.title.clone(),
             audios: vec![audio],
             cover: None,
+            platform: Platform::Youtube
         })
     }
 

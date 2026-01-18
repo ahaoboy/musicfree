@@ -39,6 +39,7 @@ impl Extractor for FileExtractor {
             title: audio.title.clone(),
             audios: vec![audio],
             cover: None,
+            platform: Platform::File
         })
     }
 

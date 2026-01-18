@@ -257,6 +257,7 @@ pub async fn extract(url: &str) -> Result<Playlist> {
         title,
         audios,
         cover: Some(cover),
+        platform: Platform::Bilibili,
     })
 }
 
