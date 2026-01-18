@@ -1,3 +1,4 @@
+use crate::Playlist;
 use crate::bilibili::core::{PlayUrlResponse, ViewResponse};
 use crate::core::Quality;
 use crate::download::{download_text, get_http_client};
@@ -222,7 +223,7 @@ fn get_info(view: &ViewResponse) -> Vec<AudioInfo> {
 }
 
 /// Download audio from Bilibili video
-pub async fn extract(url: &str) -> Result<Vec<Audio>> {
+pub async fn extract(url: &str) -> Result<Playlist> {
     // Get cookies first
     download_text("https://www.bilibili.com", HeaderMap::new()).await?;
     download_text(
@@ -246,8 +247,17 @@ pub async fn extract(url: &str) -> Result<Vec<Audio>> {
 
         audios.push(audio);
     }
+    let (title, cover) = if let Some(ugc) = view.data.ugc_season {
+        (ugc.title, ugc.cover)
+    } else {
+        (view.data.title, view.data.pic)
+    };
 
-    Ok(audios)
+    Ok(Playlist {
+        title,
+        audios,
+        cover: Some(cover),
+    })
 }
 
 pub async fn download(url: &str) -> Result<Vec<u8>> {

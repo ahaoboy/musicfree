@@ -1,5 +1,6 @@
+use crate::Playlist;
 use crate::bilibili::api::{download, extract, is_bilibili_url};
-use crate::core::{Audio, Extractor, Platform};
+use crate::core::{Extractor, Platform};
 use crate::error::Result;
 use async_trait::async_trait;
 pub mod api;
@@ -15,7 +16,7 @@ impl Extractor for BilibiliExtractor {
         is_bilibili_url(url)
     }
 
-    async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
+    async fn extract(&self, url: &str) -> Result<Playlist> {
         extract(url).await
     }
 

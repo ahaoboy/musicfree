@@ -121,10 +121,21 @@ impl Audio {
 
 /// Playlist representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlayList {
+pub struct Playlist {
     pub title: String,
     pub audios: Vec<Audio>,
-    pub date: u32,
+    pub cover: Option<String>
+}
+
+impl Playlist {
+    /// Create a new playlist
+    pub fn new(title: String) -> Self {
+        Self {
+            title,
+            audios: Vec::new(),
+            cover: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -136,22 +147,6 @@ pub enum Quality {
     Super,
 }
 
-impl PlayList {
-    /// Create a new playlist
-    pub fn new(title: String) -> Self {
-        Self {
-            title,
-            audios: Vec::new(),
-            date: chrono::Utc::now().timestamp() as u32,
-        }
-    }
-
-    /// Add audio to playlist
-    pub fn add_audio(mut self, audio: Audio) -> Self {
-        self.audios.push(audio);
-        self
-    }
-}
 
 /// Trait for extracting audio from different platforms
 #[async_trait::async_trait]
@@ -161,7 +156,7 @@ pub trait Extractor: Send + Sync {
 
     /// Extract audio resources from URL
     /// Returns a Vec<Audio> since a URL might contain multiple audio resources
-    async fn extract(&self, url: &str) -> Result<Vec<Audio>>;
+    async fn extract(&self, url: &str) -> Result<Playlist>;
 
     /// Download audio binary data and populate the binary field
     /// Default implementation uses the download_url to fetch binary data

@@ -1,5 +1,6 @@
 mod android;
 mod common;
+use crate::Playlist;
 use crate::core::{Audio, Extractor, Platform};
 use crate::error::Result;
 use async_trait::async_trait;
@@ -40,9 +41,14 @@ impl Extractor for YoutubeExtractor {
         is_youtube_url(url)
     }
 
-    async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
+    async fn extract(&self, url: &str) -> Result<Playlist> {
         let audio = download_audio(url).await?;
-        Ok(vec![audio])
+
+        Ok(Playlist {
+            title: audio.title.clone(),
+            audios: vec![audio],
+            cover: None,
+        })
     }
 
     fn platform(&self) -> Platform {

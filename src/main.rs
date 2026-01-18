@@ -288,8 +288,8 @@ async fn main() {
     println!("Extracting audio from: {}", args.url);
 
     // Phase 1: Extract and display audio information
-    let mut audios = match extract(&args.url).await {
-        Ok(audios) => audios,
+    let mut audios = match extract(&args.url).await{
+        Ok(audios) => audios.audios,
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);

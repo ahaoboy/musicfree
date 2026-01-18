@@ -1,3 +1,4 @@
+use crate::Playlist;
 use crate::core::{Audio, AudioFormat, Extractor, Platform};
 use crate::error::Result;
 use crate::utils::get_md5;
@@ -21,7 +22,7 @@ impl Extractor for FileExtractor {
         is_http_url(url) && is_audio(url).is_some()
     }
 
-    async fn extract(&self, url: &str) -> Result<Vec<Audio>> {
+    async fn extract(&self, url: &str) -> Result<Playlist> {
         let fmt = is_audio(url).unwrap_or(AudioFormat::Mp3);
         let id = get_md5(url);
         // Create a minimal Audio struct representing a downloadable file
@@ -33,7 +34,12 @@ impl Extractor for FileExtractor {
             Platform::File,
         )
         .with_format(fmt);
-        Ok(vec![audio])
+
+        Ok(Playlist {
+            title: audio.title.clone(),
+            audios: vec![audio],
+            cover: None,
+        })
     }
 
     fn platform(&self) -> Platform {
