@@ -12,7 +12,7 @@ authors = ["ahaoboy"]
 default = ["bindgen", "ytdlp-ejs", "cli"]
 bindgen = ["ytdlp-ejs/bindgen"]
 ytdlp-ejs = ["dep:ytdlp-ejs"]
-cli = ["dep:clap"]
+cli = ["dep:clap", "dep:tokio"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -23,7 +23,12 @@ reqwest = { version = "0.12", features = [
   "gzip",
   "cookies",
 ], default-features = false }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = [
+  "macros",
+  "rt-multi-thread",
+  "process",
+  "time",
+], default-features = false, optional = true }
 thiserror = "2"
 regex = "1"
 urlencoding = "2"
@@ -39,7 +44,7 @@ strum = "0.27"
 strum_macros = "0.27"
 clap = { version = "4", features = ["derive"], optional = true }
 url = "2"
-md5 = "*"
+md5 = "0.8"
 abv = "0.3"
 
 [profile.release]
