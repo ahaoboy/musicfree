@@ -326,7 +326,7 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<Playlist> {
             title,
             format!("https://www.youtube.com{}", video_url),
             Platform::Youtube,
-        );
+        ).with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"));
         audios.push(audio);
     }
 

@@ -236,7 +236,7 @@ fn get_cover_filename(audio: &musicfree::core::Audio, output_name: &Option<Strin
     } else {
         // Use audio.id as prefix to prevent filename conflicts
         let sanitized_title = sanitize_filename::sanitize(&audio.title);
-        format!("{}_{}.jpg", audio.id, sanitized_title)
+        format!("{sanitized_title}_{}.jpg", audio.id)
     }
 }
 
