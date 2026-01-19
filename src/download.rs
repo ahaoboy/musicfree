@@ -12,21 +12,38 @@ pub(crate) const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64
 
 pub fn get_http_client() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
+    let cookie_jar = recommended_cookies();
+
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .timeout(DEFAULT_TIMEOUT)
             .connect_timeout(DEFAULT_TIMEOUT)
             .tcp_keepalive(Duration::from_secs(60))
+            .cookie_provider(std::sync::Arc::new(cookie_jar))
             .cookie_store(true)
             .build()
             .expect("Failed to create HTTP client")
     })
 }
 
+pub fn recommended_cookies() -> reqwest::cookie::Jar {
+    let cookie =
+        "CONSENT=YES+; Path=/; Domain=youtube.com; Secure; Expires=Fri, 01 Jan 2038 00:00:00 GMT;";
+    let url = "https://youtube.com".parse().unwrap();
+
+    let jar = reqwest::cookie::Jar::default();
+    jar.add_cookie_str(cookie, &url);
+    jar
+}
+
 /// Get default headers for requests
 fn get_default_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_static(DEFAULT_USER_AGENT));
+    headers.insert(
+        reqwest::header::ACCEPT_LANGUAGE,
+        HeaderValue::from_static("en-US,en"),
+    );
     headers.insert("Range", HeaderValue::from_static("bytes=0-"));
     headers
 }
