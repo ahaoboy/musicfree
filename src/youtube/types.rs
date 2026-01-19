@@ -85,3 +85,94 @@ pub struct ContentPlaybackContext {
     #[serde(rename = "html5Preference")]
     pub html5_preference: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YtInitialData {
+    pub contents: Contents,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Contents {
+    #[serde(rename = "twoColumnWatchNextResults")]
+    pub two_column_watch_next_results: TwoColumnWatchNextResults,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TwoColumnWatchNextResults {
+    #[serde(rename = "playlist")]
+    pub playlist: Playlist,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Playlist {
+    #[serde(rename = "playlist")]
+    pub playlist: PlaylistData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistData {
+    pub title: Option<String>,
+    pub contents: Vec<PlaylistContent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PlaylistContent {
+    Video(PlaylistVideoContent),
+    Other(serde_json::Value),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistVideoContent {
+    #[serde(rename = "playlistPanelVideoRenderer")]
+    pub playlist_panel_video_renderer: PlaylistPanelVideoRenderer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistPanelVideoRenderer {
+    pub title: Title,
+    #[serde(rename = "navigationEndpoint")]
+    pub navigation_endpoint: NavigationEndpoint,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Title {
+    SimpleText {
+        #[serde(rename = "simpleText")]
+        simple_text: String,
+    },
+    Runs {
+        runs: Vec<Run>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Run {
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NavigationEndpoint {
+    #[serde(rename = "commandMetadata")]
+    pub command_metadata: CommandMetadata,
+    #[serde(rename = "watchEndpoint")]
+    pub watch_endpoint: WatchEndpoint,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandMetadata {
+    #[serde(rename = "webCommandMetadata")]
+    pub web_command_metadata: WebCommandMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebCommandMetadata {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchEndpoint {
+    #[serde(rename = "videoId")]
+    pub video_id: String,
+}

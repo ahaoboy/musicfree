@@ -51,3 +51,23 @@ pub fn parse_id(url: &str) -> Result<String> {
 pub fn is_youtube_url(url: &str) -> bool {
     url.contains("youtube.com") || url.contains("youtu.be")
 }
+
+/// Check if URL contains a playlist parameter
+pub fn is_playlist_url(url: &str) -> bool {
+    url.contains("list=") && is_youtube_url(url)
+}
+
+/// Extract playlist ID from YouTube URL
+pub fn parse_playlist_id(url: &str) -> Option<String> {
+    if let Some(pos) = url.find("list=") {
+        let id: String = url[pos + 5..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+            .take_while(|c| !"&?".contains(*c))
+            .collect();
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+    None
+}

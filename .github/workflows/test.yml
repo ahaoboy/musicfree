@@ -54,6 +54,7 @@ jobs:
           declare -a YOUTUBE_URLS=(
             "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
             "https://www.youtube.com/watch?v=E2Rj2gQAyPA"
+            "https://www.youtube.com/watch?v=p00EF6_b5pI&list=PLI0_h8FqQIs1YxZZyEMVOeB5UV6hOO8Ja"
           )
 
           echo "=== Processing Bilibili URLs ==="

@@ -189,37 +189,35 @@ async fn download_audio(
     output_dir: &Option<String>,
     output_name: &Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Find the appropriate extractor and download binary data
-    audio
-        .platform
-        .extractor()
-        .download(&audio.download_url)
-        .await?;
+    let filename = get_filename(audio, output_name);
+    let base_path = if let Some(dir) = output_dir {
+        // Create directory if it doesn't exist
+        fs::create_dir_all(dir)?;
+        Path::new(dir).join(&filename)
+    } else {
+        Path::new(".").join(&filename)
+    };
 
+    // Check if file already exists
+    if base_path.exists() {
+        println!("⏭ File already exists, skipping: {}", base_path.display());
+        return Ok(());
+    }
+
+    // Find appropriate extractor and download binary data
     match audio
         .platform
         .extractor()
         .download(&audio.download_url)
         .await
     {
-        Ok(bin) => {
-            let filename = get_filename(audio, output_name);
-            let base_path = if let Some(dir) = output_dir {
-                // Create directory if it doesn't exist
-                fs::create_dir_all(dir)?;
-                Path::new(dir).join(&filename)
-            } else {
-                Path::new(".").join(&filename)
-            };
-
-            match fs::write(&base_path, bin) {
-                Ok(_) => println!("✓ Saved to: {}", base_path.display()),
-                Err(e) => {
-                    eprintln!("✗ Error saving file: {}", e);
-                    return Err(e.into());
-                }
+        Ok(bin) => match fs::write(&base_path, bin) {
+            Ok(_) => println!("✓ Saved to: {}", base_path.display()),
+            Err(e) => {
+                eprintln!("✗ Error saving file: {}", e);
+                return Err(e.into());
             }
-        }
+        },
         Err(e) => {
             println!("✗ No binary data available for download: {:?}", e);
         }
@@ -236,8 +234,9 @@ fn get_cover_filename(audio: &musicfree::core::Audio, output_name: &Option<Strin
             .unwrap_or("cover");
         format!("{}.jpg", base_name)
     } else {
-        // Use sanitized title + .jpg extension
-        format!("{}_cover.jpg", sanitize_filename::sanitize(&audio.title))
+        // Use audio.id as prefix to prevent filename conflicts
+        let sanitized_title = sanitize_filename::sanitize(&audio.title);
+        format!("{}_{}.jpg", audio.id, sanitized_title)
     }
 }
 
@@ -247,11 +246,6 @@ async fn download_cover(
     output_name: &Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(cover_url) = &audio.cover {
-        println!("Downloading cover from: {}", cover_url);
-
-        // Download cover binary data
-        let cover_data = audio.platform.extractor().download_cover(cover_url).await?;
-
         let cover_filename = get_cover_filename(audio, output_name);
 
         let base_path = if let Some(dir) = cover_dir {
@@ -262,11 +256,28 @@ async fn download_cover(
             Path::new(".").join(&cover_filename)
         };
 
-        match fs::write(&base_path, cover_data) {
-            Ok(_) => println!("✓ Cover saved to: {}", base_path.display()),
+        // Check if cover file already exists
+        if base_path.exists() {
+            println!(
+                "⏭ Cover file already exists, skipping: {}",
+                base_path.display()
+            );
+            return Ok(());
+        }
+
+        println!("Downloading cover from: {}", cover_url);
+
+        // Download cover binary data
+        match audio.platform.extractor().download_cover(cover_url).await {
+            Ok(cover_data) => match fs::write(&base_path, cover_data) {
+                Ok(_) => println!("✓ Cover saved to: {}", base_path.display()),
+                Err(e) => {
+                    eprintln!("✗ Error saving cover: {}", e);
+                    return Err(e.into());
+                }
+            },
             Err(e) => {
-                eprintln!("✗ Error saving cover: {}", e);
-                return Err(e.into());
+                println!("✗ Failed to download cover: {:?}", e);
             }
         }
     } else {
