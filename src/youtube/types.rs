@@ -20,6 +20,8 @@ pub struct VideoDetails {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamingData {
     pub formats: Vec<Format>,
+    #[serde(rename = "adaptiveFormats")]
+    pub adaptive_formats: Vec<Format>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,8 +84,9 @@ pub struct PlaybackContext {
 
 #[derive(Debug, Serialize)]
 pub struct ContentPlaybackContext {
-    #[serde(rename = "html5Preference")]
-    pub html5_preference: String,
+    // #[serde(rename = "html5Preference")]
+    // pub html5_preference: String,
+    pub pcm2: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

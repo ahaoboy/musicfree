@@ -219,7 +219,8 @@ async fn download_audio(
             }
         },
         Err(e) => {
-            println!("✗ No binary data available for download: {:?}", e);
+            eprintln!("✗ No binary data available for download: {:?}", e);
+            return Err(e.into());
         }
     }
     Ok(())
@@ -277,7 +278,8 @@ async fn download_cover(
                 }
             },
             Err(e) => {
-                println!("✗ Failed to download cover: {:?}", e);
+                eprintln!("✗ Failed to download cover: {:?}", e);
+                return Err(e.into());
             }
         }
     } else {

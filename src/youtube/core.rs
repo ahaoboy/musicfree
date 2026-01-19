@@ -31,10 +31,11 @@ async fn get_player_url(html: &str) -> Option<String> {
 
 /// Extract audio formats from player response (web client)
 pub fn extract_audio_formats_web(player_response: &PlayerResponse) -> Result<Vec<&Format>> {
-    let formats = player_response
-        .streaming_data
-        .formats
+    let formats = &player_response.streaming_data.formats;
+    let adaptive_formats = &player_response.streaming_data.adaptive_formats;
+    let formats = formats
         .iter()
+        .chain(adaptive_formats)
         .filter(|i| i.url.is_some() || i.signature_cipher.is_some());
     Ok(formats.collect())
 }
@@ -67,23 +68,25 @@ fn solve_n(url_str: &str, player: String) -> Result<String> {
     match output {
         JsChallengeOutput::Result { responses, .. } => {
             // Check if result type is 'result' and responses[0] exists
-            if let Some(first_response) = responses.first()
-                && let JsChallengeResponse::Result { data } = first_response
-            {
-                // Get the transformed n value and set it in URL
-                if let Some(new_n) = data.get(&n) {
-                    // Remove existing n parameter and add new one
-                    let mut pairs: Vec<(String, String)> = url_obj
-                        .query_pairs()
-                        .filter(|(k, _)| k != "n")
-                        .map(|(k, v)| (k.into_owned(), v.into_owned()))
-                        .collect();
-                    // Rebuild URL with updated parameters
-                    pairs.push(("n".to_owned(), new_n.to_string()));
-                    url_obj.query_pairs_mut().clear().extend_pairs(pairs);
-                    return Ok(url_obj.to_string());
+
+            for resp in responses {
+                if let JsChallengeResponse::Result { data } = resp {
+                    // Get the transformed n value and set it in URL
+                    if let Some(new_n) = data.get(&n) {
+                        // Remove existing n parameter and add new one
+                        let mut pairs: Vec<(String, String)> = url_obj
+                            .query_pairs()
+                            .filter(|(k, _)| k != "n")
+                            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+                            .collect();
+                        // Rebuild URL with updated parameters
+                        pairs.push(("n".to_owned(), new_n.to_string()));
+                        url_obj.query_pairs_mut().clear().extend_pairs(pairs);
+                        return Ok(url_obj.to_string());
+                    }
                 }
             }
+
             Err(MusicFreeError::JsDecryptionFailed(
                 "Failed to get valid response for n parameter".to_string(),
             ))
@@ -182,18 +185,6 @@ fn solve_cipher(cipher_str: &str, player: String) -> Result<String> {
     }
 }
 
-pub fn resolve_url(format: &Format, player: String) -> Result<String> {
-    if let Some(url) = &format.url {
-        return solve_n(url, player);
-    }
-
-    if let Some(c) = &format.signature_cipher {
-        return solve_cipher(c, player);
-    }
-
-    Err(MusicFreeError::AudioNotFound)
-}
-
 /// Fetch player response from YouTube Android API
 pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResponse> {
     let api_url = format!(
@@ -201,14 +192,22 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
         ytcfg.innertube_api_key
     );
 
+    let client = serde_json::json!({
+          "clientName": "ANDROID",
+          "clientVersion": "20.10.38",
+          // "androidSdkVersion": 30,
+          "userAgent": ANDROID_USER_AGENT,
+          "osName": "Android",
+          "osVersion": "11",
+    });
+
     let request_body = InnertubeRequest {
         video_id: video_id.to_string(),
-        context: InnertubeContext {
-            client: ytcfg.innertube_context.client.clone(),
-        },
+        context: InnertubeContext { client },
         playback_context: PlaybackContext {
             content_playback_context: ContentPlaybackContext {
-                html5_preference: "HTML5_PREF_WANTS".to_string(),
+                // html5_preference: "HTML5_PREF_WANTS".to_string(),
+                pcm2: "yes".to_string(),
             },
         },
         content_check_ok: true,
@@ -217,17 +216,7 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
 
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(
-        USER_AGENT,
-        HeaderValue::from_str(
-            ytcfg
-                .innertube_context
-                .client
-                .get("userAgent")
-                .and_then(|i| i.as_str())
-                .unwrap_or(ANDROID_USER_AGENT),
-        )?,
-    );
+    headers.insert(USER_AGENT, HeaderValue::from_str(ANDROID_USER_AGENT)?);
     headers.insert("X-YouTube-Client-Name", HeaderValue::from_static("3"));
     headers.insert(
         "X-YouTube-Client-Version",
@@ -325,17 +314,19 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<Playlist> {
 pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let video_id = &crate::youtube::utils::parse_id(url)?;
 
+    let mut headers = HeaderMap::new();
+    headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
     // Step 1: Fetch video page
     let pagr_url = format!("https://www.youtube.com/watch?v={}", video_id);
-    let html = download_text(&pagr_url, HeaderMap::new()).await?;
+    let html = download_text(&pagr_url, headers.clone()).await?;
 
     let ytcfg = parse_ytcfg(&html)?;
 
     // Step 2: Extract player response from HTML
-    let player_response = if let Ok(pr) = parse_player_response_from_html(&html) {
+    let player_response = if let Ok(pr) = parse_player(video_id, &ytcfg).await {
         pr
     } else {
-        parse_player(video_id, &ytcfg).await?
+        parse_player_response_from_html(&html)?
     };
 
     let player_url = get_player_url(&html)
@@ -351,26 +342,23 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let format = formats
         .iter()
         .find(|f| f.itag == 140)
+        .or_else(|| formats.iter().find(|f| f.mime_type.starts_with("audio/")))
         .or_else(|| formats.first())
         .ok_or(MusicFreeError::AudioNotFound)?;
 
-    let download_url = resolve_url(format, player_js_content)?;
+    let download_url = if let Some(url) = &format.url {
+        if url.contains("&n=") && url.contains("&sig=") {
+            solve_n(url, player_js_content.clone())?
+        } else {
+            url.to_string()
+        }
+    } else if let Some(cipher) = &format.signature_cipher {
+        solve_cipher(cipher, player_js_content)?
+    } else {
+        return Err(MusicFreeError::AudioNotFound);
+    };
 
-    let mut headers = HeaderMap::new();
-    let ua = &ytcfg
-        .innertube_context
-        .client
-        .get("userAgent")
-        .and_then(|i| i.as_str())
-        .unwrap_or(WEB_USER_AGENT)
-        .to_string();
-    if let Ok(val) = HeaderValue::from_str(ua) {
-        headers.insert(USER_AGENT, val);
-    }
-    headers.insert(
-        "Referer",
-        HeaderValue::from_static("https://www.youtube.com/"),
-    );
+    headers.insert(USER_AGENT, WEB_USER_AGENT.parse().unwrap());
     // Step 6: Download audio
     download_binary(&download_url, headers).await
 }
