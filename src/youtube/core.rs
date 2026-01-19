@@ -73,21 +73,14 @@ fn solve_n(url_str: &str, player: String) -> Result<String> {
                 // Get the transformed n value and set it in URL
                 if let Some(new_n) = data.get(&n) {
                     // Remove existing n parameter and add new one
-                    let pairs: Vec<(String, String)> = url_obj
+                    let mut pairs: Vec<(String, String)> = url_obj
                         .query_pairs()
-                        .map(|(k, v)| {
-                            if k == "n" {
-                                (k.into_owned(), new_n.clone())
-                            } else {
-                                (k.into_owned(), v.into_owned())
-                            }
-                        })
+                        .filter(|(k, _)| k != "n")
+                        .map(|(k, v)| (k.into_owned(), v.into_owned()))
                         .collect();
                     // Rebuild URL with updated parameters
-                    url_obj.set_query(None);
-                    for (key, value) in pairs {
-                        url_obj.query_pairs_mut().append_pair(&key, &value);
-                    }
+                    pairs.push(("n".to_owned(), new_n.to_string()));
+                    url_obj.query_pairs_mut().clear().extend_pairs(pairs);
                     return Ok(url_obj.to_string());
                 }
             }
@@ -168,25 +161,12 @@ fn solve_cipher(cipher_str: &str, player: String) -> Result<String> {
                 // 1. Collect old parameters and replace 'n'
                 let mut pairs: Vec<(String, String)> = url_obj
                     .query_pairs()
-                    .map(|(k, v)| {
-                        if k == "n" {
-                            (k.into_owned(), new_n.clone())
-                        } else if k == sp {
-                            (k.into_owned(), new_sig.clone())
-                        } else {
-                            (k.into_owned(), v.into_owned())
-                        }
-                    })
+                    .filter(|(k, _)| k != "n" && k != sp)
+                    .map(|(k, v)| (k.into_owned(), v.into_owned()))
                     .collect();
-
-                if !pairs.iter().any(|(k, _)| k == sp) {
-                    pairs.push((sp.to_owned(), new_sig.to_string()));
-                }
-
-                url_obj.set_query(None);
-                for (key, value) in pairs {
-                    url_obj.query_pairs_mut().append_pair(&key, &value);
-                }
+                pairs.push(("n".to_owned(), new_n.to_string()));
+                pairs.push((sp.to_owned(), new_sig.to_string()));
+                url_obj.query_pairs_mut().clear().extend_pairs(pairs);
                 let final_url = url_obj.to_string();
                 Ok(final_url)
             } else {
@@ -326,7 +306,8 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<Playlist> {
             title,
             format!("https://www.youtube.com{}", video_url),
             Platform::Youtube,
-        ).with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"));
+        )
+        .with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"));
         audios.push(audio);
     }
 
@@ -386,30 +367,10 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     if let Ok(val) = HeaderValue::from_str(ua) {
         headers.insert(USER_AGENT, val);
     }
-
     headers.insert(
         "Referer",
         HeaderValue::from_static("https://www.youtube.com/"),
     );
-    headers.insert(
-        "Origin",
-        HeaderValue::from_static("https://www.youtube.com"),
-    );
-
-    headers.insert("Accept", HeaderValue::from_static("*/*"));
-    headers.insert(
-        "Accept-Language",
-        HeaderValue::from_static("en-US,en;q=0.9"),
-    );
-    headers.insert(
-        "Accept-Encoding",
-        HeaderValue::from_static("gzip, deflate, br"),
-    );
-    headers.insert("Connection", HeaderValue::from_static("keep-alive"));
-    headers.insert("Sec-Fetch-Dest", HeaderValue::from_static("audio"));
-    headers.insert("Sec-Fetch-Mode", HeaderValue::from_static("cors"));
-    headers.insert("Sec-Fetch-Site", HeaderValue::from_static("same-site"));
-
     // Step 6: Download audio
     download_binary(&download_url, headers).await
 }
