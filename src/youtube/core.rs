@@ -1,4 +1,3 @@
-use regex::Regex;
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
 use std::collections::HashMap;
 use url::Url;
@@ -10,7 +9,7 @@ use crate::youtube::types::{
     ContentPlaybackContext, Format, InnertubeContext, InnertubeRequest, PlaybackContext,
     PlayerResponse, YtConfig,
 };
-use crate::youtube::utils::{ANDROID_USER_AGENT, INNERTUBE_CLIENT_VERSION, WEB_USER_AGENT};
+use crate::youtube::utils::{ANDROID_USER_AGENT,   WEB_USER_AGENT};
 use crate::{Audio, AudioFormat, Platform, Playlist};
 
 use ytdlp_ejs::{
@@ -18,15 +17,16 @@ use ytdlp_ejs::{
     RuntimeType,
 };
 
-async fn get_player_url(html: &str) -> Result<String> {
-    let re = Regex::new(r#"<script src="([^"]+)" name="player/base""#)?;
-    let src = re
-        .captures(html)
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str())
-        .ok_or_else(|| MusicFreeError::PlayerJsNotFound)?;
-    let url = format!("https://www.youtube.com{}", src);
-    Ok(url)
+async fn get_player_url(html: &str) -> Option<String> {
+    let marker = r#"name="player/base""#;
+    let marker_pos = html.find(marker)?;
+    let before_marker = &html[..marker_pos];
+    let src_key = r#"src=""#;
+    let src_pos = before_marker.rfind(src_key)?;
+    let rest = &before_marker[src_pos + src_key.len()..];
+    let end_pos = rest.find('"')?;
+    let url = format!("https://www.youtube.com{}", &rest[..end_pos]);
+    Some(url)
 }
 
 /// Extract audio formats from player response (web client)
@@ -166,7 +166,7 @@ fn solve_cipher(cipher_str: &str, player: String) -> Result<String> {
             if let (Some(new_n), Some(new_sig)) = (transformed_n, deciphered_sig) {
                 // D. Construct final URL
                 // 1. Collect old parameters and replace 'n'
-                let pairs: Vec<(String, String)> = url_obj
+                let mut pairs: Vec<(String, String)> = url_obj
                     .query_pairs()
                     .map(|(k, v)| {
                         if k == "n" {
@@ -178,6 +178,10 @@ fn solve_cipher(cipher_str: &str, player: String) -> Result<String> {
                         }
                     })
                     .collect();
+
+                if !pairs.iter().any(|(k, _)| k == sp) {
+                    pairs.push((sp.to_owned(), new_sig.to_string()));
+                }
 
                 url_obj.set_query(None);
                 for (key, value) in pairs {
@@ -233,11 +237,16 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
 
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
+    headers.insert(USER_AGENT, HeaderValue::from_str(ytcfg
+        .innertube_context
+        .client
+        .get("userAgent")
+        .and_then(|i| i.as_str())
+        .unwrap_or(ANDROID_USER_AGENT))?);
     headers.insert("X-YouTube-Client-Name", HeaderValue::from_static("3"));
     headers.insert(
         "X-YouTube-Client-Version",
-        HeaderValue::from_static(INNERTUBE_CLIENT_VERSION),
+        HeaderValue::from_str(&ytcfg.innertube_client_version)?,
     );
     headers.insert(ORIGIN, HeaderValue::from_static("https://www.youtube.com"));
 
@@ -255,15 +264,12 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
 pub async fn extract_audio(url: &str) -> Result<Playlist> {
     let video_id = &crate::youtube::utils::parse_id(url)?;
     let html = crate::download::download_text(url, HeaderMap::new()).await?;
-
-    // Try to extract player response from HTML first
+    let ytcfg = parse_ytcfg(&html)?;
     let player_response = if let Ok(pr) = parse_player_response_from_html(&html) {
         pr
     } else {
-        let ytcfg = parse_ytcfg(&html)?;
-        parse_player(video_id, &ytcfg).await?
+      parse_player(video_id, &ytcfg).await?
     };
-
     let title = &player_response.video_details.title;
     let audios = extract_audio_formats_web(&player_response)?
         .into_iter()
@@ -305,7 +311,9 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
         parse_player(video_id, &ytcfg).await?
     };
 
-    let player_url = get_player_url(&html).await?;
+    let player_url = get_player_url(&html)
+        .await
+        .ok_or(MusicFreeError::PlayerJsNotFound)?;
     // Step 3: Download player JS if available
     let player_js_content = download_text(&player_url, HeaderMap::new()).await?;
 

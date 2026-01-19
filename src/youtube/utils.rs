@@ -3,8 +3,6 @@ use crate::error::{MusicFreeError, Result};
 pub const WEB_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 pub const ANDROID_USER_AGENT: &str =
     "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip";
-pub const INNERTUBE_CLIENT_NAME: &str = "ANDROID";
-pub const INNERTUBE_CLIENT_VERSION: &str = "20.10.38";
 
 /// Parse video ID from YouTube URL
 pub fn parse_id(url: &str) -> Result<String> {

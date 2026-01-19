@@ -196,32 +196,34 @@ async fn download_audio(
         .download(&audio.download_url)
         .await?;
 
-    if let Ok(bin) = audio
+    match audio
         .platform
         .extractor()
         .download(&audio.download_url)
         .await
     {
-        let filename = get_filename(audio, output_name);
-        let base_path = if let Some(dir) = output_dir {
-            // Create directory if it doesn't exist
-            fs::create_dir_all(dir)?;
-            Path::new(dir).join(&filename)
-        } else {
-            Path::new(".").join(&filename)
-        };
+        Ok(bin) => {
+            let filename = get_filename(audio, output_name);
+            let base_path = if let Some(dir) = output_dir {
+                // Create directory if it doesn't exist
+                fs::create_dir_all(dir)?;
+                Path::new(dir).join(&filename)
+            } else {
+                Path::new(".").join(&filename)
+            };
 
-        match fs::write(&base_path, bin) {
-            Ok(_) => println!("✓ Saved to: {}", base_path.display()),
-            Err(e) => {
-                eprintln!("✗ Error saving file: {}", e);
-                return Err(e.into());
+            match fs::write(&base_path, bin) {
+                Ok(_) => println!("✓ Saved to: {}", base_path.display()),
+                Err(e) => {
+                    eprintln!("✗ Error saving file: {}", e);
+                    return Err(e.into());
+                }
             }
         }
-    } else {
-        println!("✗ No binary data available for download");
+        Err(e) => {
+            println!("✗ No binary data available for download: {:?}", e);
+        }
     }
-
     Ok(())
 }
 

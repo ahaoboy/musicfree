@@ -48,6 +48,12 @@ pub struct YtConfig {
     pub innertube_api_key: String,
     #[serde(rename = "PLAYER_JS_URL")]
     pub player_js_url: String,
+    #[serde(rename = "INNERTUBE_CLIENT_VERSION")]
+    pub innertube_client_version: String,
+    #[serde(rename = "INNERTUBE_API_VERSION")]
+    pub innertube_api_version: String,
+    #[serde(rename = "INNERTUBE_CLIENT_NAME")]
+    pub innertube_client_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
