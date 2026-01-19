@@ -45,6 +45,8 @@ clap = { version = "4", features = ["derive"], optional = true }
 url = "2"
 md5 = "0.8"
 abv = "0.3"
+git-version = "0.3"
+const-str = "1"
 
 [profile.release]
 debug = false

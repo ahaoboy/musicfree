@@ -7,7 +7,7 @@ use std::{sync::OnceLock, time::Duration};
 
 use crate::error::{MusicFreeError, Result};
 
-pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_secs(600);
+pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 pub(crate) const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0";
 
 pub fn get_http_client() -> &'static Client {

@@ -44,6 +44,9 @@ jobs:
         run: |
           cargo install --path=. -q
 
+          musicfree -h
+          musicfree -V
+
       - name: test bilibili
         run: |
           # Define Bilibili URLs

@@ -3,9 +3,14 @@ use musicfree::extract;
 use std::fs;
 use std::path::Path;
 
+const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+const GIT_HASH: &str = git_version::git_version!();
+const VERSION: &str = const_str::concat!(CARGO_PKG_VERSION, " ", GIT_HASH);
+
 #[derive(Parser)]
 #[command(
     name = "musicfree",
+    version = VERSION,
     about = "Extract audio from various platforms",
     long_about = "A tool to extract and download audio from platforms like Bilibili and YouTube.\n\
     Similar to ytdlp but focused on audio extraction.\n\n\
