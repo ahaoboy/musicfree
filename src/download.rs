@@ -27,6 +27,7 @@ pub fn get_http_client() -> &'static Client {
 fn get_default_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_static(DEFAULT_USER_AGENT));
+    headers.insert("Range", HeaderValue::from_static("bytes=0-"));
     headers
 }
 

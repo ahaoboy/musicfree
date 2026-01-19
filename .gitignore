@@ -4,3 +4,4 @@ Cargo.lock
 *.mp4
 *.mp3
 dist
+.agent

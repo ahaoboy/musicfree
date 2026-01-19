@@ -1,35 +1,23 @@
-mod android;
-mod common;
 use crate::Playlist;
-use crate::core::{Audio, Extractor, Platform};
+use crate::core::{Extractor, Platform};
 use crate::error::Result;
+use crate::youtube::core::download_audio;
 use async_trait::async_trait;
-pub use common::{AudioFormat, extract_video_id, is_youtube_url};
-#[cfg(feature = "ytdlp-ejs")]
-mod web;
 
-/// Download audio from YouTube
-pub async fn download_audio(url: &str) -> Result<Audio> {
-    let video_id = extract_video_id(url)?;
+pub mod core;
+pub mod types;
+pub mod utils;
 
-    #[cfg(feature = "ytdlp-ejs")]
-    {
-        match web::download_audio_ejs(&video_id).await {
-            Ok(info) => return Ok(info),
-            Err(e) => {
-                eprintln!("Web(EJS) client failed: {e}, falling back to Android client...");
-            }
-        }
-    }
-
-    android::download_audio_android(&video_id).await
-}
-
-/// Get available audio formats without downloading
-pub async fn get_audio_formats(url: &str) -> Result<(String, Vec<AudioFormat>)> {
-    let video_id = extract_video_id(url)?;
-    android::get_audio_formats_android(&video_id).await
-}
+// Re-export commonly used types and functions
+pub use core::{
+    extract_audio, extract_audio_formats_web, parse_player, parse_player_response_from_html,
+    parse_ytcfg, resolve_url,
+};
+pub use types::{
+    ContentPlaybackContext, Format, InnertubeContext, InnertubeRequest, PlaybackContext,
+    PlayerResponse, YtConfig,
+};
+pub use utils::{is_youtube_url, parse_id};
 
 /// YouTube extractor implementing the Extractor trait
 #[derive(Debug, Clone)]
@@ -42,14 +30,11 @@ impl Extractor for YoutubeExtractor {
     }
 
     async fn extract(&self, url: &str) -> Result<Playlist> {
-        let audio = download_audio(url).await?;
+        extract_audio(url).await
+    }
 
-        Ok(Playlist {
-            title: audio.title.clone(),
-            audios: vec![audio],
-            cover: None,
-            platform: Platform::Youtube
-        })
+    async fn download(&self, url: &str) -> Result<Vec<u8>> {
+        download_audio(url).await
     }
 
     fn platform(&self) -> Platform {

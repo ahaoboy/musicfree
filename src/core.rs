@@ -8,7 +8,7 @@ pub use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 /// Supported platforms
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(EnumIter, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Copy)]
 pub enum Platform {
     Bilibili,
     Youtube,
@@ -34,6 +34,8 @@ pub enum AudioFormat {
     Wav,
     AAC,
     Ogg,
+    Mp4,
+    Webm,
 }
 
 impl AudioFormat {
@@ -45,7 +47,16 @@ impl AudioFormat {
             AudioFormat::Wav => ".wav",
             AudioFormat::AAC => ".aac",
             AudioFormat::Ogg => ".ogg",
+            AudioFormat::Mp4 => ".mp4",
+            AudioFormat::Webm => ".webm",
         }
+    }
+
+    pub fn from_youtube(s: &str) -> Self {
+        if s.starts_with("audio/webm") {
+            return Self::Webm;
+        };
+        Self::Mp4
     }
 }
 /// Audio resource representation
@@ -54,14 +65,13 @@ pub struct Audio {
     pub id: String,
     pub title: String,
     pub download_url: String,
-    pub local_url: Option<String>,
-    pub author: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
-    pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<AudioFormat>,
     pub platform: Platform,
-    pub date: u64,
 }
 
 impl Audio {
@@ -71,14 +81,10 @@ impl Audio {
             id,
             title,
             download_url,
-            local_url: None,
-            author: Vec::new(),
             cover: None,
-            tags: Vec::new(),
             duration: None,
             format: None,
             platform,
-            date: chrono::Utc::now().timestamp() as u64,
         }
     }
 
@@ -88,33 +94,15 @@ impl Audio {
         self
     }
 
-    /// Set author
-    pub fn with_author(mut self, author: Vec<String>) -> Self {
-        self.author = author;
-        self
-    }
-
     /// Set cover URL
     pub fn with_cover(mut self, cover: String) -> Self {
         self.cover = Some(cover);
         self
     }
 
-    /// Set tags
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
-        self.tags = tags;
-        self
-    }
-
     /// Set duration in seconds
     pub fn with_duration(mut self, duration: u64) -> Self {
         self.duration = Some(duration);
-        self
-    }
-
-    /// Set local URL
-    pub fn with_local_url(mut self, local_url: String) -> Self {
-        self.local_url = Some(local_url);
         self
     }
 }
@@ -124,6 +112,7 @@ impl Audio {
 pub struct Playlist {
     pub title: String,
     pub audios: Vec<Audio>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
     pub platform: Platform,
 }
@@ -140,7 +129,7 @@ impl Playlist {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(EnumIter, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Copy, Default)]
 pub enum Quality {
     Low,
     Standard,

@@ -5,6 +5,7 @@ use crate::utils::get_md5;
 pub use strum::IntoEnumIterator;
 
 /// Direct file extractor: treat http/https URLs as file downloads
+#[derive(Debug, Clone)]
 pub struct FileExtractor;
 
 fn is_http_url(url: &str) -> bool {
@@ -39,7 +40,7 @@ impl Extractor for FileExtractor {
             title: audio.title.clone(),
             audios: vec![audio],
             cover: None,
-            platform: Platform::File
+            platform: Platform::File,
         })
     }
 

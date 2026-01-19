@@ -1,10 +1,20 @@
 use crate::Playlist;
-use crate::bilibili::api::{download, extract, is_bilibili_url};
+use crate::bilibili::core::{download_audio, extract_audio};
 use crate::core::{Extractor, Platform};
 use crate::error::Result;
 use async_trait::async_trait;
-pub mod api;
+
 pub mod core;
+pub mod types;
+pub mod utils;
+
+// Re-export commonly used types and functions
+pub use core::get_audio_info;
+pub use types::{
+    Audio, AudioInfo, Dash, Durl, Episode, EpisodeArc, EpisodePage, Owner, PlayData,
+    PlayUrlResponse, Section, UgcSession, ViewData, ViewResponse,
+};
+pub use utils::{is_bilibili_short_url, is_bilibili_url, parse_id, resolve_short_link};
 
 /// Bilibili extractor implementing the Extractor trait
 #[derive(Debug, Clone)]
@@ -17,7 +27,7 @@ impl Extractor for BilibiliExtractor {
     }
 
     async fn extract(&self, url: &str) -> Result<Playlist> {
-        extract(url).await
+        extract_audio(url).await
     }
 
     fn platform(&self) -> Platform {
@@ -25,6 +35,6 @@ impl Extractor for BilibiliExtractor {
     }
 
     async fn download(&self, url: &str) -> Result<Vec<u8>> {
-        download(url).await
+        download_audio(url).await
     }
 }

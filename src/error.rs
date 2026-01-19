@@ -61,6 +61,21 @@ pub enum MusicFreeError {
 
     #[error("Rate limited: {0}")]
     RateLimited(String),
+
+    #[error("JS decryption failed: {0}")]
+    JsDecryptionFailed(String),
+
+    #[error("Cipher parse error: {0}")]
+    CipherParseError(String),
+
+    #[error("Player.js not found")]
+    PlayerJsNotFound,
+
+    #[error("Config parse error: {0}")]
+    ConfigParseError(String),
+
+    #[error("Regex error: {0}")]
+    RegexError(#[from] regex::Error),
 }
 
 pub type Result<T> = std::result::Result<T, MusicFreeError>;

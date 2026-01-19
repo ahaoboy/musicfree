@@ -116,9 +116,6 @@ fn list_available_formats(audios: &[musicfree::core::Audio]) {
             println!("  Duration: {}", format_duration(duration));
         }
 
-        if !audio.author.is_empty() {
-            println!("  Author: {}", audio.author.join(", "));
-        }
         if let Some(cover_url) = &audio.cover {
             println!("  Cover: {}", cover_url);
         }
@@ -151,10 +148,6 @@ fn display_audio_info(audios: &[musicfree::core::Audio]) {
 
         if let Some(duration) = audio.duration {
             println!("    Duration: {}", format_duration(duration));
-        }
-
-        if !audio.author.is_empty() {
-            println!("    Author: {}", audio.author.join(", "));
         }
 
         if let Some(cover_url) = &audio.cover {
@@ -288,7 +281,7 @@ async fn main() {
     println!("Extracting audio from: {}", args.url);
 
     // Phase 1: Extract and display audio information
-    let mut audios = match extract(&args.url).await{
+    let mut audios = match extract(&args.url).await {
         Ok(audios) => audios.audios,
         Err(e) => {
             eprintln!("Error: {}", e);
@@ -351,10 +344,11 @@ async fn main() {
 
         // Download cover if requested and available
         if args.download_cover
-            && let Err(e) = download_cover(&audio, &args.cover_dir, &args.output_name).await {
-                eprintln!("Failed to download cover for [{}]: {}", index + 1, e);
-                // Don't exit on cover download failure, just continue
-            }
+            && let Err(e) = download_cover(&audio, &args.cover_dir, &args.output_name).await
+        {
+            eprintln!("Failed to download cover for [{}]: {}", index + 1, e);
+            // Don't exit on cover download failure, just continue
+        }
 
         if index < audios_len - 1 {
             println!();
