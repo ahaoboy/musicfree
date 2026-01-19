@@ -39,32 +39,33 @@ jobs:
         with:
           stack: dual # Optional. Support [ ipv4, ipv6, dual ]. Default is dual.
           mode: client # Optional. Support [ wireguard, client ]. Default is wireguard.
-      - name: run
-        env:
-          RUST_LOG: info
-          RUST_BACKTRACE: 1
+
+      - name: test bilibili
         run: |
-          # Define URL arrays for each platform
+          cargo install --path=. -q
+
+      - name: test bilibili
+        run: |
+          # Define Bilibili URLs
           declare -a BILIBILI_URLS=(
             "https://b23.tv/vBnRYHM"
             "https://www.bilibili.com/video/BV1aAV7zHEhJ"
             "BV1UG4y1z7iq"
           )
 
-          declare -a YOUTUBE_URLS=(
-            "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
-            "https://www.youtube.com/watch?v=E2Rj2gQAyPA"
-            "https://www.youtube.com/watch?v=p00EF6_b5pI&list=PLI0_h8FqQIs1YxZZyEMVOeB5UV6hOO8Ja"
-          )
-
           echo "=== Processing Bilibili URLs ==="
           mkdir -p bilibili
           mkdir -p bilibili/covers
 
+          bilibili_success=0
+          bilibili_total=0
+
           for url in "${BILIBILI_URLS[@]}"; do
             echo "Downloading from: $url"
-            if timeout 300 cargo run -q -- -d "./bilibili" -c --cover-dir "./bilibili/covers" "$url"; then
+            bilibili_total=$((bilibili_total + 1))
+            if timeout 1000 musicfree -d "./bilibili" -c --cover-dir "./bilibili/covers" "$url"; then
               echo "✓ Successfully downloaded: $url"
+              bilibili_success=$((bilibili_success + 1))
             else
               echo "✗ Failed or timeout for: $url"
             fi
@@ -72,37 +73,57 @@ jobs:
           done
 
           echo ""
-          echo "=== Processing YouTube URLs ==="
-          mkdir -p youtube
-          mkdir -p youtube/covers
-
-          for url in "${YOUTUBE_URLS[@]}"; do
-            echo "Downloading from: $url"
-            if timeout 300 cargo run -q -- -d "./youtube" -c --cover-dir "./youtube/covers" "$url"; then
-              echo "✓ Successfully downloaded: $url"
-            else
-              echo "✗ Failed or timeout for: $url"
-            fi
-            echo "---"
-          done
-
-          echo ""
-          echo "=== Download Summary ==="
+          echo "=== Bilibili Download Results ==="
           echo "Bilibili files:"
           ls -lh bilibili/ || echo "No bilibili files found"
           echo ""
           echo "Bilibili covers:"
           ls -lh bilibili/covers/ || echo "No bilibili covers found"
           echo ""
+          echo "=== Bilibili Summary ==="
+          echo "Success rate: $bilibili_success/$bilibili_total"
+          echo "Total bilibili files: $(find bilibili -type f ! -path '*/covers/*' 2>/dev/null | wc -l)"
+          echo "Total bilibili covers: $(find bilibili/covers -type f 2>/dev/null | wc -l)"
+          echo "=== Bilibili Test Complete ==="
+
+      - name: test youtube
+        run: |
+          # Define YouTube URLs
+          declare -a YOUTUBE_URLS=(
+            "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
+            "https://www.youtube.com/watch?v=E2Rj2gQAyPA"
+            "https://www.youtube.com/watch?v=p00EF6_b5pI&list=PLI0_h8FqQIs1YxZZyEMVOeB5UV6hOO8Ja"
+          )
+
+          echo "=== Processing YouTube URLs ==="
+          mkdir -p youtube
+          mkdir -p youtube/covers
+
+          youtube_success=0
+          youtube_total=0
+
+          for url in "${YOUTUBE_URLS[@]}"; do
+            echo "Downloading from: $url"
+            youtube_total=$((youtube_total + 1))
+            if timeout 1000 musicfree -d "./youtube" -c --cover-dir "./youtube/covers" "$url"; then
+              echo "✓ Successfully downloaded: $url"
+              youtube_success=$((youtube_success + 1))
+            else
+              echo "✗ Failed or timeout for: $url"
+            fi
+            echo "---"
+          done
+
+          echo ""
+          echo "=== YouTube Download Results ==="
           echo "YouTube files:"
           ls -lh youtube/ || echo "No youtube files found"
           echo ""
           echo "YouTube covers:"
           ls -lh youtube/covers/ || echo "No youtube covers found"
           echo ""
-          echo "=== Download Summary ==="
-          echo "Total bilibili files: $(find bilibili -type f ! -path '*/covers/*' 2>/dev/null | wc -l)"
-          echo "Total bilibili covers: $(find bilibili/covers -type f 2>/dev/null | wc -l)"
+          echo "=== YouTube Summary ==="
+          echo "Success rate: $youtube_success/$youtube_total"
           echo "Total youtube files: $(find youtube -type f ! -path '*/covers/*' 2>/dev/null | wc -l)"
           echo "Total youtube covers: $(find youtube/covers -type f 2>/dev/null | wc -l)"
-          echo "=== All Downloads Complete ==="
+          echo "=== YouTube Test Complete ==="
