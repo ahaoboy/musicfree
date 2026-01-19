@@ -40,7 +40,7 @@ jobs:
           stack: dual # Optional. Support [ ipv4, ipv6, dual ]. Default is dual.
           mode: client # Optional. Support [ wireguard, client ]. Default is wireguard.
 
-      - name: test bilibili
+      - name: install
         run: |
           cargo install --path=. -q
 
