@@ -1,18 +1,32 @@
-pub mod bilibili;
 pub mod core;
 mod download;
 pub mod error;
 pub mod file;
-pub mod youtube; // legacy direct file link extractor
 
-pub use bilibili::BilibiliExtractor;
+#[cfg(feature = "bilibili")]
+pub mod bilibili;
+
+#[cfg(feature = "youtube")]
+pub mod youtube;
+
 pub use core::*;
 use error::{MusicFreeError, Result};
 pub use file::FileExtractor;
 mod utils;
-use crate::youtube::YoutubeExtractor;
 
-pub static EXTRACTORS: &[&dyn Extractor] = &[&BilibiliExtractor, &YoutubeExtractor, &FileExtractor];
+#[cfg(feature = "bilibili")]
+pub use bilibili::BilibiliExtractor;
+
+#[cfg(feature = "youtube")]
+pub use crate::youtube::YoutubeExtractor;
+
+pub static EXTRACTORS: &[&dyn Extractor] = &[
+    #[cfg(feature = "bilibili")]
+    &BilibiliExtractor,
+    #[cfg(feature = "youtube")]
+    &YoutubeExtractor,
+    &FileExtractor,
+];
 
 /// Extract audio from URL (auto-detect platform) with HTTP fallback
 pub async fn extract(url: &str) -> Result<Playlist> {

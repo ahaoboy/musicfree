@@ -29,6 +29,86 @@ async fn get_player_url(html: &str) -> Option<String> {
     Some(url)
 }
 
+/// Get the appropriate runtime type based on enabled features
+fn get_runtime_type() -> RuntimeType {
+    #[cfg(feature = "qjs")]
+    let rt = RuntimeType::QuickJS;
+
+    #[cfg(all(not(feature = "qjs"), feature = "boa"))]
+    let rt = RuntimeType::Boa;
+
+    #[cfg(all(not(feature = "qjs"), not(feature = "boa")))]
+    compile_error!("At least one JS runtime feature must be enabled (qjs or boa)");
+
+    rt
+}
+
+/// Execute JS challenges and return response data
+fn execute_js_challenges(
+    player: String,
+    challenges: Vec<(JsChallengeType, Vec<String>)>,
+) -> Result<HashMap<String, String>> {
+    let requests = challenges
+        .into_iter()
+        .map(|(challenge_type, challenges_vec)| JsChallengeRequest {
+            challenge_type,
+            challenges: challenges_vec,
+        })
+        .collect();
+
+    let input = JsChallengeInput::Player {
+        player,
+        requests,
+        output_preprocessed: false,
+    };
+
+    let runtime_type = get_runtime_type();
+    let output = ytdlp_ejs::process_input(input, runtime_type);
+
+    match output {
+        JsChallengeOutput::Result { responses, .. } => {
+            let mut results = HashMap::new();
+            for response in responses {
+                if let JsChallengeResponse::Result { data } = response {
+                    results.extend(data);
+                }
+            }
+            Ok(results)
+        }
+        JsChallengeOutput::Error { error } => Err(MusicFreeError::JsDecryptionFailed(format!(
+            "JS execution failed: {}",
+            error
+        ))),
+    }
+}
+
+/// Extract 'n' parameter from URL
+fn extract_n_param(url: &Url) -> Result<String> {
+    url.query_pairs()
+        .find(|(k, _)| k == "n")
+        .map(|(_, v)| v.into_owned())
+        .ok_or_else(|| {
+            MusicFreeError::CipherParseError("Parameter 'n' not found in URL".to_string())
+        })
+}
+
+/// Update URL query parameters, removing specified keys and adding new ones
+fn update_url_query(
+    mut url: Url,
+    remove_keys: &[&str],
+    add_params: &[(String, String)],
+) -> Result<String> {
+    let mut pairs: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(k, _)| !remove_keys.contains(&k.as_ref()))
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+
+    pairs.extend(add_params.iter().cloned());
+    url.query_pairs_mut().clear().extend_pairs(pairs);
+    Ok(url.to_string())
+}
+
 /// Extract audio formats from player response (web client)
 pub fn extract_audio_formats_web(player_response: &PlayerResponse) -> Result<Vec<&Format>> {
     let formats = &player_response.streaming_data.formats;
@@ -41,65 +121,28 @@ pub fn extract_audio_formats_web(player_response: &PlayerResponse) -> Result<Vec
 }
 
 fn solve_n(url_str: &str, player: String) -> Result<String> {
-    let mut url_obj = Url::parse(url_str)
+    let url_obj = Url::parse(url_str)
         .map_err(|e| MusicFreeError::CipherParseError(format!("Failed to parse URL: {}", e)))?;
 
-    // Extract n parameter from URL query params
-    let n = url_obj
-        .query_pairs()
-        .find(|(k, _)| k == "n")
-        .map(|(_, v)| v.into_owned())
-        .ok_or_else(|| {
-            MusicFreeError::CipherParseError("Parameter 'n' not found in URL".to_string())
-        })?;
+    // Extract n parameter from URL
+    let n = extract_n_param(&url_obj)?;
 
-    // Execute JS challenge for n parameter only
-    let input = JsChallengeInput::Player {
-        player,
-        requests: vec![JsChallengeRequest {
-            challenge_type: JsChallengeType::N,
-            challenges: vec![n.clone()],
-        }],
-        output_preprocessed: false,
-    };
+    // Execute JS challenge for n parameter
+    let results = execute_js_challenges(player, vec![(JsChallengeType::N, vec![n.clone()])])?;
 
-    let output = ytdlp_ejs::process_input(input, RuntimeType::QuickJS);
+    // Get the transformed n value
+    let new_n = results.get(&n).ok_or_else(|| {
+        MusicFreeError::JsDecryptionFailed(
+            "Failed to get valid response for n parameter".to_string(),
+        )
+    })?;
 
-    match output {
-        JsChallengeOutput::Result { responses, .. } => {
-            // Check if result type is 'result' and responses[0] exists
-
-            for resp in responses {
-                if let JsChallengeResponse::Result { data } = resp {
-                    // Get the transformed n value and set it in URL
-                    if let Some(new_n) = data.get(&n) {
-                        // Remove existing n parameter and add new one
-                        let mut pairs: Vec<(String, String)> = url_obj
-                            .query_pairs()
-                            .filter(|(k, _)| k != "n")
-                            .map(|(k, v)| (k.into_owned(), v.into_owned()))
-                            .collect();
-                        // Rebuild URL with updated parameters
-                        pairs.push(("n".to_owned(), new_n.to_string()));
-                        url_obj.query_pairs_mut().clear().extend_pairs(pairs);
-                        return Ok(url_obj.to_string());
-                    }
-                }
-            }
-
-            Err(MusicFreeError::JsDecryptionFailed(
-                "Failed to get valid response for n parameter".to_string(),
-            ))
-        }
-        JsChallengeOutput::Error { error } => Err(MusicFreeError::JsDecryptionFailed(format!(
-            "JS execution failed: {}",
-            error
-        ))),
-    }
+    // Update URL with new n parameter
+    update_url_query(url_obj, &["n"], &[("n".to_string(), new_n.clone())])
 }
 
 fn solve_cipher(cipher_str: &str, player: String) -> Result<String> {
-    // A. Parse signatureCipher (query string)
+    // Parse signatureCipher parameters
     let cipher_params: HashMap<String, String> = url::form_urlencoded::parse(cipher_str.as_bytes())
         .into_owned()
         .collect();
@@ -112,77 +155,37 @@ fn solve_cipher(cipher_str: &str, player: String) -> Result<String> {
         .get("s")
         .ok_or_else(|| MusicFreeError::CipherParseError("Missing s in cipher".to_string()))?;
 
-    // B. Extract 'n' parameter from URL
-    let mut url_obj = Url::parse(url_str)
+    // Parse URL and extract 'n' parameter
+    let url_obj = Url::parse(url_str)
         .map_err(|e| MusicFreeError::CipherParseError(format!("Failed to parse URL: {}", e)))?;
-    let n = url_obj
-        .query_pairs()
-        .find(|(k, _)| k == "n")
-        .map(|(_, v)| v.into_owned())
-        .ok_or_else(|| {
-            MusicFreeError::CipherParseError("Parameter 'n' not found in URL".to_string())
-        })?;
+    let n = extract_n_param(&url_obj)?;
 
-    // C. Construct JS execution input
-    let input = JsChallengeInput::Player {
+    // Execute JS challenges for both n and s parameters
+    let results = execute_js_challenges(
         player,
-        requests: vec![
-            JsChallengeRequest {
-                challenge_type: JsChallengeType::N,
-                challenges: vec![n.clone()],
-            },
-            JsChallengeRequest {
-                challenge_type: JsChallengeType::Sig,
-                challenges: vec![s.to_string()],
-            },
+        vec![
+            (JsChallengeType::N, vec![n.clone()]),
+            (JsChallengeType::Sig, vec![s.to_string()]),
         ],
-        output_preprocessed: false,
-    };
+    )?;
 
-    // Execute JS
-    let output = ytdlp_ejs::process_input(input, RuntimeType::QuickJS);
+    // Extract transformed values
+    let new_n = results.get(&n).ok_or_else(|| {
+        MusicFreeError::JsDecryptionFailed("Failed to decrypt n parameter".to_string())
+    })?;
+    let new_sig = results.get(s).ok_or_else(|| {
+        MusicFreeError::JsDecryptionFailed("Failed to decrypt s parameter".to_string())
+    })?;
 
-    match output {
-        JsChallengeOutput::Result { responses, .. } => {
-            let mut transformed_n: Option<String> = None;
-            let mut deciphered_sig: Option<String> = None;
-
-            // Iterate through responses to find n and s data
-            for response in responses {
-                if let JsChallengeResponse::Result { data } = response {
-                    if let Some(val) = data.get(&n) {
-                        transformed_n = Some(val.clone());
-                    }
-                    if let Some(val) = data.get(s) {
-                        deciphered_sig = Some(val.clone());
-                    }
-                }
-            }
-
-            if let (Some(new_n), Some(new_sig)) = (transformed_n, deciphered_sig) {
-                // D. Construct final URL
-                // 1. Collect old parameters and replace 'n'
-                let mut pairs: Vec<(String, String)> = url_obj
-                    .query_pairs()
-                    .filter(|(k, _)| k != "n" && k != sp)
-                    .map(|(k, v)| (k.into_owned(), v.into_owned()))
-                    .collect();
-                pairs.push(("n".to_owned(), new_n.to_string()));
-                pairs.push((sp.to_owned(), new_sig.to_string()));
-                url_obj.query_pairs_mut().clear().extend_pairs(pairs);
-                let final_url = url_obj.to_string();
-                Ok(final_url)
-            } else {
-                Err(MusicFreeError::JsDecryptionFailed(
-                    "Failed to decrypt cipher parameters".to_string(),
-                ))
-            }
-        }
-        JsChallengeOutput::Error { error } => Err(MusicFreeError::JsDecryptionFailed(format!(
-            "JS execution failed: {}",
-            error
-        ))),
-    }
+    // Update URL with new parameters
+    update_url_query(
+        url_obj,
+        &["n", sp],
+        &[
+            ("n".to_string(), new_n.clone()),
+            (sp.to_string(), new_sig.clone()),
+        ],
+    )
 }
 
 /// Fetch player response from YouTube Android API

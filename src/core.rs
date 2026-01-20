@@ -1,7 +1,12 @@
 use crate::FileExtractor;
+use crate::download::download_binary;
 use crate::error::Result;
+
+#[cfg(feature = "youtube")]
 use crate::youtube::YoutubeExtractor;
-use crate::{BilibiliExtractor, download::download_binary};
+
+#[cfg(feature = "bilibili")]
+use crate::BilibiliExtractor;
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 pub use strum::IntoEnumIterator;
@@ -10,7 +15,9 @@ use strum_macros::EnumIter;
 /// Supported platforms
 #[derive(EnumIter, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Copy)]
 pub enum Platform {
+    #[cfg(feature = "bilibili")]
     Bilibili,
+    #[cfg(feature = "youtube")]
     Youtube,
     File,
 }
@@ -18,7 +25,9 @@ pub enum Platform {
 impl Platform {
     pub fn extractor(&self) -> &'static dyn Extractor {
         match self {
+            #[cfg(feature = "bilibili")]
             Platform::Bilibili => &BilibiliExtractor,
+            #[cfg(feature = "youtube")]
             Platform::Youtube => &YoutubeExtractor,
             Platform::File => &FileExtractor,
         }

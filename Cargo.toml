@@ -9,11 +9,13 @@ homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
 [features]
-default = ["bindgen", "cli", "qjs"]
+default = ["bindgen", "cli", "qjs", "bilibili", "youtube"]
 bindgen = ["ytdlp-ejs/bindgen"]
 qjs = ["ytdlp-ejs/qjs"]
-# boa = ["ytdlp-ejs/boa"]
+boa = ["ytdlp-ejs/boa"]
 cli = ["dep:clap", "dep:tokio"]
+bilibili = []
+youtube = ["dep:ytdlp-ejs"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -33,7 +35,8 @@ tokio = { version = "1", features = [
 thiserror = "2"
 regex = "1"
 urlencoding = "2"
-ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, features = []}
+ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, optional = true, features = [
+] }
 anyhow = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
@@ -47,6 +50,7 @@ md5 = "0.8"
 abv = "0.3"
 git-version = "0.3"
 const-str = "1"
+icu_normalizer = "2"
 
 [profile.release]
 debug = false
