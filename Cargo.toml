@@ -12,7 +12,7 @@ authors = ["ahaoboy"]
 default = ["bindgen", "cli", "qjs", "bilibili", "youtube"]
 bindgen = ["ytdlp-ejs/bindgen"]
 qjs = ["ytdlp-ejs/qjs"]
-boa = ["ytdlp-ejs/boa"]
+boa = ["ytdlp-ejs/boa", "dep:icu_normalizer"]
 cli = ["dep:clap", "dep:tokio"]
 bilibili = []
 youtube = ["dep:ytdlp-ejs"]
@@ -50,7 +50,7 @@ md5 = "0.8"
 abv = "0.3"
 git-version = "0.3"
 const-str = "1"
-icu_normalizer = "2"
+icu_normalizer = { version = "2", optional = true }
 
 [profile.release]
 debug = false
