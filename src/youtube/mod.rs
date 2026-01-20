@@ -15,6 +15,9 @@ pub use types::{
 };
 pub use utils::{is_youtube_url, parse_id};
 
+#[cfg(feature = "ytdlp-ejs")]
+mod ejs;
+
 /// YouTube extractor implementing the Extractor trait
 #[derive(Debug, Clone)]
 pub struct YoutubeExtractor;

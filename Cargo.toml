@@ -9,13 +9,14 @@ homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
 [features]
-default = ["bindgen", "cli", "qjs", "bilibili", "youtube"]
+default = ["cli", "bilibili", "youtube", "qjs"]
 bindgen = ["ytdlp-ejs/bindgen"]
-qjs = ["ytdlp-ejs/qjs"]
-boa = ["ytdlp-ejs/boa", "dep:icu_normalizer"]
+qjs = ["ytdlp-ejs", "ytdlp-ejs/qjs"]
+boa = ["ytdlp-ejs", "ytdlp-ejs/boa", "dep:icu_normalizer"]
 cli = ["dep:clap", "dep:tokio"]
 bilibili = []
-youtube = ["dep:ytdlp-ejs"]
+youtube = []
+ytdlp-ejs = ["dep:ytdlp-ejs"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
