@@ -82,7 +82,7 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
     };
 
     Ok(Playlist {
-        id: None,
+        id: Some(view.data.bvid),
         title: Some(title),
         audios,
         cover: Some(cover),
@@ -108,14 +108,15 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
 
     let infos: Vec<_> = get_audio_info(&view)
         .into_iter()
-        .filter(|i| i.bvid == bvid)
         .collect();
 
-    let Some(cid) = infos.get(p - 1).map(|i| i.cid) else {
+    let Some(info) = infos.get(p - 1) else {
         return Err(MusicFreeError::DownloadFailed(format!(
             "Not found cid of page({p}) from bvid({bvid})"
         )));
     };
+    let cid = &info.cid;
+    let bvid = &info.bvid;
     let fnval = 16; //dash
     let play_url =
         format!("https://api.bilibili.com/x/player/playurl?bvid={bvid}&cid={cid}&fnval={fnval}");
