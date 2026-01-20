@@ -37,7 +37,8 @@ impl Extractor for FileExtractor {
         .with_format(fmt);
 
         Ok(Playlist {
-            title: audio.title.clone(),
+            id: None,
+            title: None,
             audios: vec![audio],
             cover: None,
             platform: Platform::File,

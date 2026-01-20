@@ -59,9 +59,14 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
     let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
     let v = get_audio_info(&view);
+    let has_p = v.len() > 1;
     let mut audios = vec![];
-    for info in v {
-        let audio_url = format!("https://www.bilibili.com/video/{}", bvid);
+    for (index, info) in v.into_iter().enumerate() {
+        let audio_url = if has_p {
+            format!("https://www.bilibili.com/video/{}?p={}", bvid, index + 1)
+        } else {
+            format!("https://www.bilibili.com/video/{}", bvid)
+        };
         let id = info.cid.to_string();
         let audio = Audio::new(id, info.title, audio_url, Platform::Bilibili)
             .with_format(AudioFormat::M4A)
@@ -77,7 +82,8 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
     };
 
     Ok(Playlist {
-        title,
+        id: None,
+        title: Some(title),
         audios,
         cover: Some(cover),
         platform: Platform::Bilibili,
@@ -87,17 +93,29 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
 /// Download audio from Bilibili video
 pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let bvid = crate::bilibili::utils::parse_id(url).await?;
+    let p = url::Url::parse(url)
+        .ok()
+        .and_then(|u| {
+            u.query_pairs()
+                .find(|(k, _v)| k == "p")
+                .and_then(|(_, v)| v.parse::<usize>().ok())
+        })
+        .unwrap_or(1);
+
     let quality = Quality::Super;
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
     let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
 
-    let infos = get_audio_info(&view);
-    let Some(info) = infos.iter().find(|i| i.bvid == bvid) else {
-        return Err(MusicFreeError::DownloadFailed("not found bvid".to_string()));
+    let infos: Vec<_> = get_audio_info(&view)
+        .into_iter()
+        .filter(|i| i.bvid == bvid)
+        .collect();
+
+    let Some(cid) = infos.get(p - 1).map(|i| i.cid) else {
+        return Err(MusicFreeError::DownloadFailed(format!(
+            "Not found cid of page({p}) from bvid({bvid})"
+        )));
     };
-
-    let cid = info.cid;
-
     let fnval = 16; //dash
     let play_url =
         format!("https://api.bilibili.com/x/player/playurl?bvid={bvid}&cid={cid}&fnval={fnval}");

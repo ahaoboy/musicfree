@@ -117,7 +117,8 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
         .collect();
 
     let playlist = Playlist {
-        title: title.clone(),
+        id: None,
+        title: Some(title.clone()),
         audios,
         cover: Some(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg")),
         platform: Platform::Youtube,
@@ -152,7 +153,8 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<Playlist> {
     }
 
     let playlist = Playlist {
-        title: playlist_title,
+        id: Some(playlist_id.clone()),
+        title: Some(playlist_title),
         audios,
         cover: Some(format!("https://i.ytimg.com/vi/{playlist_id}/hq720.jpg")),
         platform: Platform::Youtube,

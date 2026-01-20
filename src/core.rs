@@ -119,7 +119,8 @@ impl Audio {
 /// Playlist representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Playlist {
-    pub title: String,
+    pub id: Option<String>,
+    pub title: Option<String>,
     pub audios: Vec<Audio>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
@@ -128,8 +129,9 @@ pub struct Playlist {
 
 impl Playlist {
     /// Create a new playlist
-    pub fn new(title: String, platform: Platform) -> Self {
+    pub fn new(id: Option<String>, title: Option<String>, platform: Platform) -> Self {
         Self {
+            id,
             title,
             audios: Vec::new(),
             cover: None,
