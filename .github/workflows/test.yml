@@ -95,6 +95,7 @@ jobs:
           declare -a YOUTUBE_URLS=(
             "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
             "https://www.youtube.com/watch?v=E2Rj2gQAyPA"
+            # FIXME: WHY NOT WORKING?
             # "https://www.youtube.com/watch?v=p00EF6_b5pI&list=PLI0_h8FqQIs1YxZZyEMVOeB5UV6hOO8Ja"
             "https://www.youtube.com/watch?v=F5tSoaJ93ac&list=PLJP5_qSxMbkLzsriTWWMMhWhG7C7ThQPz"
           )
