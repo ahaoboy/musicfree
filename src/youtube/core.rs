@@ -262,6 +262,7 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
                 Platform::Youtube,
             )
             .with_format(AudioFormat::from_youtube(&i.mime_type))
+            .with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"))
         })
         .collect();
 
