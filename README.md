@@ -1,7 +1,7 @@
 # MusicFree
 
 <div align="center">
-  <img src="https://github.com/ahaoboy/musicfree-tauri/blob/main/public/icon.png?raw=true" alt="MusicFree Icon" width="128" height="128">
+  <img src="https://github.com/ahaoboy/musicfree-tauri/blob/main/public/icon.png?raw=true" alt="MusicFree Icon" width="256" height="256">
 </div>
 
 <br>
@@ -28,26 +28,14 @@ musicfree "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 ### Options
 
 ```bash
-# List available formats without downloading
-musicfree -F "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
-
 # Show information only (no download)
 musicfree -i "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
-
-# Download specific format (mp3, m4a, flac, wav, aac, ogg)
-musicfree -f mp3 "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 
 # Download to a specific directory
 musicfree -d ./music "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 
 # Specify custom output filename (works for single file)
 musicfree -o song.mp3 "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
-
-# Download audio with cover artwork
-musicfree -c "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
-
-# Download cover to a custom directory
-musicfree -c --cover-dir ./covers "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 ```
 
 ## Acknowledgments
