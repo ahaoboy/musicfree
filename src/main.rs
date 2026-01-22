@@ -301,17 +301,25 @@ async fn main() {
     println!("Extracting audio from: {}", args.url);
 
     // Phase 1: Extract and display audio information
-    let mut audios = match extract(&args.url).await {
-        Ok(audios) => audios.audios,
+    let (playlist, position) = match extract(&args.url).await {
+        Ok(result) => result,
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }
     };
 
+    let mut audios = playlist.audios;
+
     if audios.is_empty() {
         println!("No audio files found.");
         return;
+    }
+
+    // Display position information if available
+    if let Some(pos) = position {
+        println!("Found requested video at position {} in playlist", pos + 1);
+        println!();
     }
 
     // Handle format selection if specified

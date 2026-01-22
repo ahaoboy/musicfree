@@ -29,7 +29,7 @@ pub static EXTRACTORS: &[&dyn Extractor] = &[
 ];
 
 /// Extract audio from URL (auto-detect platform) with HTTP fallback
-pub async fn extract(url: &str) -> Result<Playlist> {
+pub async fn extract(url: &str) -> Result<(Playlist, Option<usize>)> {
     // Try all known extractors first; if any succeeds, return.
     for i in EXTRACTORS {
         if i.matches(url) {

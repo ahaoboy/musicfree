@@ -28,7 +28,7 @@ impl Extractor for YoutubeExtractor {
         is_youtube_url(url)
     }
 
-    async fn extract(&self, url: &str) -> Result<Playlist> {
+    async fn extract(&self, url: &str) -> Result<(Playlist, Option<usize>)> {
         extract_audio(url).await
     }
 

@@ -157,7 +157,7 @@ pub trait Extractor: Send + Sync {
 
     /// Extract audio resources from URL
     /// Returns a Vec<Audio> since a URL might contain multiple audio resources
-    async fn extract(&self, url: &str) -> Result<Playlist>;
+    async fn extract(&self, url: &str) -> Result<(Playlist, Option<usize>)>;
 
     /// Download audio binary data and populate the binary field
     /// Default implementation uses the download_url to fetch binary data

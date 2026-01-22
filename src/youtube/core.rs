@@ -85,7 +85,7 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
 }
 
 /// Extract playlist information from YouTube URL
-pub async fn extract_audio(url: &str) -> Result<Playlist> {
+pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     let html = crate::download::download_text(url, HeaderMap::new()).await?;
 
     // Check if this is a playlist URL
@@ -124,11 +124,18 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
         platform: Platform::Youtube,
     };
 
-    Ok(playlist)
+    // For single video, position is 0 if playlist is not empty
+    let position = if playlist.audios.is_empty() {
+        None
+    } else {
+        Some(0)
+    };
+
+    Ok((playlist, position))
 }
 
 /// Extract playlist audio from YouTube playlist URL
-async fn extract_playlist_audio(url: &str, html: &str) -> Result<Playlist> {
+async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Option<usize>)> {
     let yt_data = parse_yt_initial_data(html)?;
     let videos = extract_playlist_videos(&yt_data)?;
 
@@ -138,10 +145,20 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<Playlist> {
     // Extract playlist title from ytInitialData
     let playlist_title = extract_playlist_title(&yt_data)?;
 
+    // Parse the video ID from the URL to find its position in the playlist
+    let requested_video_id = crate::youtube::utils::parse_id(url).ok();
+
     let mut audios = Vec::new();
+    let mut position = None;
 
     // Process each video in the playlist
-    for (title, video_url, video_id) in videos {
+    for (index, (title, video_url, video_id)) in videos.into_iter().enumerate() {
+        // Check if this is the requested video
+        if let Some(ref req_id) = requested_video_id
+            && &video_id == req_id {
+                position = Some(index);
+            }
+
         let audio = Audio::new(
             video_id.clone(),
             title,
@@ -160,7 +177,14 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<Playlist> {
         platform: Platform::Youtube,
     };
 
-    Ok(playlist)
+    // If playlist is empty, position should be None
+    let final_position = if playlist.audios.is_empty() {
+        None
+    } else {
+        position
+    };
+
+    Ok((playlist, final_position))
 }
 
 /// Download audio using web client with EJS decryption

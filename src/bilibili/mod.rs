@@ -26,7 +26,7 @@ impl Extractor for BilibiliExtractor {
         is_bilibili_url(url)
     }
 
-    async fn extract(&self, url: &str) -> Result<Playlist> {
+    async fn extract(&self, url: &str) -> Result<(Playlist, Option<usize>)> {
         extract_audio(url).await
     }
 

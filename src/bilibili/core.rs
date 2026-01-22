@@ -46,7 +46,7 @@ pub fn get_audio_info(view: &ViewResponse) -> Vec<AudioInfo> {
 }
 
 /// Extract playlist information from Bilibili URL
-pub async fn extract_audio(url: &str) -> Result<Playlist> {
+pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     // Get cookies first
     download_text("https://www.bilibili.com", HeaderMap::new()).await?;
     download_text(
@@ -56,17 +56,33 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
     .await?;
 
     let bvid = crate::bilibili::utils::parse_id(url).await?;
-    let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
-    let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
+    let api_url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
+    let view: ViewResponse = download_json(&api_url, HeaderMap::new()).await?;
     let v = get_audio_info(&view);
     let has_p = v.len() > 1;
+
+    // Parse the page number from the input URL
+    let requested_page = url::Url::parse(url).ok().and_then(|u| {
+        u.query_pairs()
+            .find(|(k, _v)| k == "p")
+            .and_then(|(_, v)| v.parse::<usize>().ok())
+    });
+
     let mut audios = vec![];
+    let mut position = None;
+
     for (index, info) in v.into_iter().enumerate() {
         let audio_url = if has_p {
             format!("https://www.bilibili.com/video/{}?p={}", bvid, index + 1)
         } else {
             format!("https://www.bilibili.com/video/{}", bvid)
         };
+
+        // Check if this is the requested video
+        if Some(index + 1) == requested_page || info.bvid == bvid && position.is_none() {
+            position = Some(index);
+        }
+
         let id = info.cid.to_string();
         let audio = Audio::new(id, info.title, audio_url, Platform::Bilibili)
             .with_format(AudioFormat::M4A)
@@ -75,19 +91,29 @@ pub async fn extract_audio(url: &str) -> Result<Playlist> {
 
         audios.push(audio);
     }
+
     let (title, cover) = if let Some(ugc) = view.data.ugc_season {
         (ugc.title, ugc.cover)
     } else {
         (view.data.title, view.data.pic)
     };
 
-    Ok(Playlist {
+    let playlist = Playlist {
         id: Some(view.data.bvid),
         title: Some(title),
         audios,
         cover: Some(cover),
         platform: Platform::Bilibili,
-    })
+    };
+
+    // If playlist is empty, position should be None
+    let final_position = if playlist.audios.is_empty() {
+        None
+    } else {
+        position
+    };
+
+    Ok((playlist, final_position))
 }
 
 /// Download audio from Bilibili video
@@ -106,9 +132,7 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
     let view: ViewResponse = download_json(&url, HeaderMap::new()).await?;
 
-    let infos: Vec<_> = get_audio_info(&view)
-        .into_iter()
-        .collect();
+    let infos: Vec<_> = get_audio_info(&view).into_iter().collect();
 
     let Some(info) = infos.get(p - 1) else {
         return Err(MusicFreeError::DownloadFailed(format!(
