@@ -83,6 +83,14 @@ struct Args {
         help = "Directory to save cover images (default: same as audio directory)"
     )]
     cover_dir: Option<String>,
+
+    /// Select specific items from playlist to download (e.g., "1,3,5" or "2-4" or "1,3-5,7")
+    #[arg(
+        short = 'I',
+        long = "playlist-items",
+        help = "Select specific items from playlist to download (e.g., \"1,3,5\" or \"2-4\" or \"1,3-5,7\")"
+    )]
+    playlist_items: Option<String>,
 }
 
 fn parse_format(format_str: &str) -> Option<musicfree::core::AudioFormat> {
@@ -139,6 +147,81 @@ fn format_display_format(format: &Option<musicfree::core::AudioFormat>) -> Strin
     format
         .as_ref()
         .map_or("Unknown".to_string(), |f| format!("{:?}", f))
+}
+
+/// Parse playlist items string into a set of indices
+/// Supports formats like "1,3,5" or "2-4" or "1,3-5,7"
+fn parse_playlist_items(items_str: &str) -> Result<Vec<usize>, String> {
+    let mut indices = Vec::new();
+
+    for part in items_str.split(',') {
+        let part = part.trim();
+
+        if part.contains('-') {
+            // Handle range like "2-4"
+            let range_parts: Vec<&str> = part.split('-').collect();
+            if range_parts.len() != 2 {
+                return Err(format!("Invalid range format: {}", part));
+            }
+
+            let start: usize = range_parts[0].trim().parse()
+                .map_err(|_| format!("Invalid number in range: {}", range_parts[0]))?;
+            let end: usize = range_parts[1].trim().parse()
+                .map_err(|_| format!("Invalid number in range: {}", range_parts[1]))?;
+
+            if start == 0 || end == 0 {
+                return Err("Playlist indices must start from 1".to_string());
+            }
+
+            if start > end {
+                return Err(format!("Invalid range: {} > {}", start, end));
+            }
+
+            for i in start..=end {
+                indices.push(i);
+            }
+        } else {
+            // Handle single number like "3"
+            let num: usize = part.parse()
+                .map_err(|_| format!("Invalid number: {}", part))?;
+
+            if num == 0 {
+                return Err("Playlist indices must start from 1".to_string());
+            }
+
+            indices.push(num);
+        }
+    }
+
+    // Remove duplicates and sort
+    indices.sort_unstable();
+    indices.dedup();
+
+    Ok(indices)
+}
+
+/// Filter audios based on playlist items selection
+fn filter_playlist_items(audios: Vec<musicfree::core::Audio>, items_str: &str) -> Result<Vec<musicfree::core::Audio>, String> {
+    let indices = parse_playlist_items(items_str)?;
+
+    let total_count = audios.len();
+    let mut filtered = Vec::new();
+
+    for idx in indices {
+        if idx > total_count {
+            eprintln!("Warning: Index {} is out of range (playlist has {} items), skipping", idx, total_count);
+            continue;
+        }
+
+        // Convert 1-based index to 0-based
+        filtered.push(audios[idx - 1].clone());
+    }
+
+    if filtered.is_empty() {
+        return Err("No valid items selected from playlist".to_string());
+    }
+
+    Ok(filtered)
 }
 
 fn display_audio_info(audios: &[musicfree::core::Audio]) {
@@ -320,6 +403,21 @@ async fn main() {
     if let Some(pos) = position {
         println!("Found requested video at position {} in playlist", pos + 1);
         println!();
+    }
+
+    // Handle playlist items selection if specified
+    if let Some(ref items_str) = args.playlist_items {
+        match filter_playlist_items(audios, items_str) {
+            Ok(filtered) => {
+                println!("Selected {} item(s) from playlist", filtered.len());
+                println!();
+                audios = filtered;
+            }
+            Err(e) => {
+                eprintln!("Error parsing playlist items: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
 
     // Handle format selection if specified
