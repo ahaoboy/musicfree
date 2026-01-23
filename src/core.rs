@@ -74,11 +74,11 @@ pub struct Audio {
     pub id: String,
     pub title: String,
     pub download_url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<AudioFormat>,
     pub platform: Platform,
 }
@@ -119,10 +119,13 @@ impl Audio {
 /// Playlist representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Playlist {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub audios: Vec<Audio>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
     pub platform: Platform,
 }
