@@ -155,9 +155,10 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
     for (index, (title, video_url, video_id)) in videos.into_iter().enumerate() {
         // Check if this is the requested video
         if let Some(ref req_id) = requested_video_id
-            && &video_id == req_id {
-                position = Some(index);
-            }
+            && &video_id == req_id
+        {
+            position = Some(index);
+        }
 
         let audio = Audio::new(
             video_id.clone(),
@@ -169,11 +170,14 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
         audios.push(audio);
     }
 
+    let cover = audios.iter().find_map(|i| i.cover.clone());
     let playlist = Playlist {
         id: Some(playlist_id.clone()),
         title: Some(playlist_title),
         audios,
-        cover: Some(format!("https://i.ytimg.com/vi/{playlist_id}/hq720.jpg")),
+        // TODO: How to get the cover from a YouTube playlist
+        // cover: Some(format!("https://i.ytimg.com/vi/{playlist_id}/hq720.jpg")),
+        cover,
         platform: Platform::Youtube,
     };
 
