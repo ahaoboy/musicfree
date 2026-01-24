@@ -127,14 +127,22 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     let audios = extract_audio_formats_web(&player_response)?
         .into_iter()
         .map(|i| {
-            Audio::new(
+            let mut audio = Audio::new(
                 video_id.clone(),
                 title.clone(),
                 format!("https://www.youtube.com/watch?v={video_id}"),
                 Platform::Youtube,
             )
             .with_format(AudioFormat::from_youtube(&i.mime_type))
-            .with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"))
+            .with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"));
+            if let Some(ms) = i
+                .approx_duration_ms
+                .clone()
+                .and_then(|s| s.parse::<u64>().ok())
+            {
+                audio.duration = Some(ms/1000);
+            }
+            audio
         })
         .collect();
 
@@ -182,9 +190,10 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
     for (index, video) in videos.into_iter().enumerate() {
         // Check if this is the requested video
         if let Some(ref req_id) = requested_video_id
-            && &video.video_id == req_id {
-                position = Some(index);
-            }
+            && &video.video_id == req_id
+        {
+            position = Some(index);
+        }
 
         let mut audio = Audio::new(
             video.video_id.clone(),

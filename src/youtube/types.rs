@@ -37,6 +37,9 @@ pub struct Format {
     pub signature_cipher: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "approxDurationMs")]
+    pub approx_duration_ms: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
