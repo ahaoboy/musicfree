@@ -84,12 +84,34 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
     Ok(player_response)
 }
 
-/// Extract playlist information from YouTube URL
+/// Extract playlist information from YouTube URL or ID
 pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
-    let html = crate::download::download_text(url, HeaderMap::new()).await?;
+    // Check if this is a playlist URL first
+    let is_playlist = crate::youtube::utils::is_playlist_url(url);
 
-    // Check if this is a playlist URL
-    if crate::youtube::utils::is_playlist_url(url) {
+    // Construct full URL for fetching HTML
+    let fetch_url = if is_playlist {
+        // For playlists, extract playlist ID and construct playlist URL
+        if crate::youtube::utils::is_valid_playlist_id(url) {
+            format!("https://www.youtube.com/playlist?list={}", url)
+        } else if let Some(playlist_id) = crate::youtube::utils::parse_playlist_id(url) {
+            format!("https://www.youtube.com/playlist?list={}", playlist_id)
+        } else {
+            url.to_string()
+        }
+    } else {
+        // For single videos, construct watch URL
+        if crate::youtube::utils::is_valid_video_id(url) {
+            format!("https://www.youtube.com/watch?v={}", url)
+        } else {
+            url.to_string()
+        }
+    };
+
+    let html = crate::download::download_text(&fetch_url, HeaderMap::new()).await?;
+
+    // Handle playlist
+    if is_playlist {
         return extract_playlist_audio(url, &html).await;
     }
 
@@ -134,39 +156,50 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     Ok((playlist, position))
 }
 
-/// Extract playlist audio from YouTube playlist URL
+/// Extract playlist audio from YouTube playlist URL or ID
 async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Option<usize>)> {
+    // Extract playlist ID from URL or use URL as playlist ID
+    let playlist_id = if crate::youtube::utils::is_valid_playlist_id(url) {
+        url.to_string()
+    } else {
+        crate::youtube::utils::parse_playlist_id(url)
+            .ok_or_else(|| MusicFreeError::InvalidUrl("Cannot extract playlist ID".to_string()))?
+    };
+
+    // Try to extract video ID from the original URL (if it's a watch URL with playlist)
+    let requested_video_id = crate::youtube::utils::parse_id(url).ok();
+
     let yt_data = parse_yt_initial_data(html)?;
     let videos = extract_playlist_videos(&yt_data)?;
 
-    let playlist_id = crate::youtube::utils::parse_playlist_id(url)
-        .ok_or_else(|| MusicFreeError::InvalidUrl("Cannot extract playlist ID".to_string()))?;
-
     // Extract playlist title from ytInitialData
     let playlist_title = extract_playlist_title(&yt_data)?;
-
-    // Parse the video ID from the URL to find its position in the playlist
-    let requested_video_id = crate::youtube::utils::parse_id(url).ok();
 
     let mut audios = Vec::new();
     let mut position = None;
 
     // Process each video in the playlist
-    for (index, (title, video_url, video_id)) in videos.into_iter().enumerate() {
+    for (index, video) in videos.into_iter().enumerate() {
         // Check if this is the requested video
         if let Some(ref req_id) = requested_video_id
-            && &video_id == req_id
-        {
-            position = Some(index);
-        }
+            && &video.video_id == req_id {
+                position = Some(index);
+            }
 
-        let audio = Audio::new(
-            video_id.clone(),
-            title,
-            format!("https://www.youtube.com{}", video_url),
+        let mut audio = Audio::new(
+            video.video_id.clone(),
+            video.title,
+            format!("https://www.youtube.com{}", video.url),
             Platform::Youtube,
         )
-        .with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"));
+        .with_cover(format!(
+            "https://i.ytimg.com/vi/{}/hq720.jpg",
+            video.video_id
+        ));
+
+        if let Some(d) = video.duration {
+            audio.duration = Some(d);
+        }
         audios.push(audio);
     }
 
@@ -175,17 +208,15 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
         id: Some(playlist_id.clone()),
         title: Some(playlist_title),
         audios,
-        // TODO: How to get the cover from a YouTube playlist
-        // cover: Some(format!("https://i.ytimg.com/vi/{playlist_id}/hq720.jpg")),
         cover,
         platform: Platform::Youtube,
     };
 
-    // If playlist is empty, position should be None
-    let final_position = if playlist.audios.is_empty() {
-        None
-    } else {
+    // Return position only if playlist is not empty and a video was found
+    let final_position = if !playlist.audios.is_empty() && position.is_some() {
         position
+    } else {
+        None
     };
 
     Ok((playlist, final_position))
@@ -336,50 +367,122 @@ pub fn parse_yt_initial_data(html: &str) -> Result<YtInitialData> {
     })
 }
 
+/// Represents a video in a YouTube playlist
+#[derive(Debug, Clone)]
+pub struct PlaylistVideoInfo {
+    pub title: String,
+    pub url: String,
+    pub video_id: String,
+    pub duration: Option<u64>,
+}
+
 /// Extract playlist video information from ytInitialData
-pub fn extract_playlist_videos(yt_data: &YtInitialData) -> Result<Vec<(String, String, String)>> {
-    let videos = &yt_data
-        .contents
-        .two_column_watch_next_results
-        .playlist
-        .playlist
-        .contents;
+/// Supports both twoColumnWatchNextResults and twoColumnBrowseResultsRenderer formats
+pub fn extract_playlist_videos(yt_data: &YtInitialData) -> Result<Vec<PlaylistVideoInfo>> {
+    // Try twoColumnWatchNextResults format first (used in watch page with playlist)
+    if let Some(watch_next) = &yt_data.contents.two_column_watch_next_results {
+        let videos = &watch_next.playlist.playlist.contents;
+        let mut result = Vec::new();
 
-    let mut result = Vec::new();
-    for content in videos {
-        if let PlaylistContent::Video(video_content) = content {
-            let renderer = &video_content.playlist_panel_video_renderer;
+        for content in videos {
+            if let PlaylistContent::Video(video_content) = content {
+                let renderer = &video_content.playlist_panel_video_renderer;
 
-            let title = match &renderer.title {
-                Title::SimpleText { simple_text } => simple_text.clone(),
-                Title::Runs { runs } => runs.iter().map(|r| r.text.as_str()).collect::<String>(),
-            };
+                let title = match &renderer.title {
+                    Title::SimpleText { simple_text } => simple_text.clone(),
+                    Title::Runs { runs } => {
+                        runs.iter().map(|r| r.text.as_str()).collect::<String>()
+                    }
+                };
 
-            let url = renderer
-                .navigation_endpoint
-                .command_metadata
-                .web_command_metadata
-                .url
-                .clone();
-            let video_id = renderer.navigation_endpoint.watch_endpoint.video_id.clone();
+                let url = renderer
+                    .navigation_endpoint
+                    .command_metadata
+                    .web_command_metadata
+                    .url
+                    .clone();
+                let video_id = renderer.navigation_endpoint.watch_endpoint.video_id.clone();
 
-            result.push((title, url, video_id));
+                result.push(PlaylistVideoInfo {
+                    title,
+                    url,
+                    video_id,
+                    duration: None,
+                });
+            }
         }
+
+        return Ok(result);
     }
 
-    Ok(result)
+    // Try twoColumnBrowseResultsRenderer format (used in playlist page)
+    if let Some(browse_results) = &yt_data.contents.two_column_browse_results_renderer {
+        // Find the selected tab and extract videos directly
+        let result = browse_results
+            .tabs
+            .iter()
+            .find(|tab| tab.tab_renderer.selected)
+            .map(|tab| {
+                tab.tab_renderer
+                    .content
+                    .section_list_renderer
+                    .contents
+                    .iter()
+                    .filter_map(|section| section.item_section_renderer.as_ref())
+                    .flat_map(|renderer| &renderer.contents)
+                    .flat_map(|item| &item.playlist_video_list_renderer.contents)
+                    .map(|video_element| {
+                        let renderer = &video_element.playlist_video_renderer;
+                        let video_id = renderer.video_id.clone();
+                        let title: String = renderer
+                            .title
+                            .runs
+                            .iter()
+                            .map(|r| r.text.as_str())
+                            .collect();
+                        let url = format!("/watch?v={}", video_id);
+                        let duration = video_element
+                            .playlist_video_renderer
+                            .length_seconds
+                            .parse()
+                            .ok();
+
+                        PlaylistVideoInfo {
+                            title,
+                            url,
+                            video_id,
+                            duration,
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        return Ok(result);
+    }
+
+    Err(MusicFreeError::ConfigParseError(
+        "No valid playlist format found in ytInitialData".to_string(),
+    ))
 }
 
 /// Extract playlist title from ytInitialData
+/// Supports both twoColumnWatchNextResults and twoColumnBrowseResultsRenderer formats
 pub fn extract_playlist_title(yt_data: &YtInitialData) -> Result<String> {
-    let playlist = &yt_data
-        .contents
-        .two_column_watch_next_results
-        .playlist
-        .playlist;
+    // Try extracting from top-level header first (for browse results)
+    if let Some(header) = &yt_data.header {
+        // Try pageHeaderRenderer
+        if let Some(page_header) = &header.page_header_renderer {
+            return Ok(page_header.page_title.clone());
+        }
+    }
 
-    if let Some(title) = &playlist.title {
-        return Ok(title.to_string());
+    // Try twoColumnWatchNextResults format
+    if let Some(watch_next) = &yt_data.contents.two_column_watch_next_results {
+        let playlist = &watch_next.playlist.playlist;
+        if let Some(title) = &playlist.title {
+            return Ok(title.to_string());
+        }
     }
 
     // Fallback to default title if not found

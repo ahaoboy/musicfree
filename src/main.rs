@@ -125,7 +125,9 @@ fn list_available_formats(audios: &[musicfree::core::Audio]) {
         println!("  Format: {}", format_display_format(&audio.format));
         println!("  Download URL: {}", audio.download_url);
 
-        if let Some(duration) = audio.duration {
+        if let Some(duration) = audio.duration
+            && duration > 0
+        {
             println!("  Duration: {}", format_duration(duration));
         }
 
@@ -164,9 +166,13 @@ fn parse_playlist_items(items_str: &str) -> Result<Vec<usize>, String> {
                 return Err(format!("Invalid range format: {}", part));
             }
 
-            let start: usize = range_parts[0].trim().parse()
+            let start: usize = range_parts[0]
+                .trim()
+                .parse()
                 .map_err(|_| format!("Invalid number in range: {}", range_parts[0]))?;
-            let end: usize = range_parts[1].trim().parse()
+            let end: usize = range_parts[1]
+                .trim()
+                .parse()
                 .map_err(|_| format!("Invalid number in range: {}", range_parts[1]))?;
 
             if start == 0 || end == 0 {
@@ -182,7 +188,8 @@ fn parse_playlist_items(items_str: &str) -> Result<Vec<usize>, String> {
             }
         } else {
             // Handle single number like "3"
-            let num: usize = part.parse()
+            let num: usize = part
+                .parse()
                 .map_err(|_| format!("Invalid number: {}", part))?;
 
             if num == 0 {
@@ -201,7 +208,10 @@ fn parse_playlist_items(items_str: &str) -> Result<Vec<usize>, String> {
 }
 
 /// Filter audios based on playlist items selection
-fn filter_playlist_items(audios: Vec<musicfree::core::Audio>, items_str: &str) -> Result<Vec<musicfree::core::Audio>, String> {
+fn filter_playlist_items(
+    audios: Vec<musicfree::core::Audio>,
+    items_str: &str,
+) -> Result<Vec<musicfree::core::Audio>, String> {
     let indices = parse_playlist_items(items_str)?;
 
     let total_count = audios.len();
@@ -209,7 +219,10 @@ fn filter_playlist_items(audios: Vec<musicfree::core::Audio>, items_str: &str) -
 
     for idx in indices {
         if idx > total_count {
-            eprintln!("Warning: Index {} is out of range (playlist has {} items), skipping", idx, total_count);
+            eprintln!(
+                "Warning: Index {} is out of range (playlist has {} items), skipping",
+                idx, total_count
+            );
             continue;
         }
 
@@ -224,12 +237,54 @@ fn filter_playlist_items(audios: Vec<musicfree::core::Audio>, items_str: &str) -
     Ok(filtered)
 }
 
-fn display_audio_info(audios: &[musicfree::core::Audio]) {
+fn display_audio_info(
+    playlist_title: &Option<String>,
+    playlist_id: &Option<String>,
+    playlist_cover: &Option<String>,
+    position: Option<usize>,
+    audios: &[musicfree::core::Audio],
+) {
+    // Display playlist information if available
+    if let Some(title) = playlist_title {
+        println!("Playlist: {}", title);
+    }
+
+    if let Some(id) = playlist_id {
+        println!("Playlist ID: {}", id);
+    }
+
+    if let Some(cover) = playlist_cover {
+        println!("Playlist Cover: {}", cover);
+    }
+
+    // Display default/requested audio position if available
+    if let Some(pos) = position {
+        println!(
+            "Default Audio: #{} ({})",
+            pos + 1,
+            audios
+                .get(pos)
+                .map(|a| a.title.as_str())
+                .unwrap_or("Unknown")
+        );
+    }
+
+    // Add separator if playlist info was shown
+    if playlist_title.is_some()
+        || playlist_id.is_some()
+        || playlist_cover.is_some()
+        || position.is_some()
+    {
+        println!();
+    }
+
     println!("Found {} audio file(s):", audios.len());
     println!();
 
     for (index, audio) in audios.iter().enumerate() {
-        println!("[{}] {}", index + 1, audio.title);
+        // Mark the default/requested audio with an indicator
+        let marker = if Some(index) == position { " ◀" } else { "" };
+        println!("[{}] {}{}", index + 1, audio.title, marker);
         println!("    Platform: {:?}", audio.platform);
         println!("    Format: {}", format_display_format(&audio.format));
         println!("    URL: {}", audio.download_url);
@@ -392,6 +447,10 @@ async fn main() {
         }
     };
 
+    // Extract playlist metadata before moving audios
+    let playlist_id = playlist.id.clone();
+    let playlist_title = playlist.title.clone();
+    let playlist_cover = playlist.cover.clone();
     let mut audios = playlist.audios;
 
     if audios.is_empty() {
@@ -440,7 +499,13 @@ async fn main() {
     }
 
     // Display audio information
-    display_audio_info(&audios);
+    display_audio_info(
+        &playlist_title,
+        &playlist_id,
+        &playlist_cover,
+        position,
+        &audios,
+    );
 
     // Check if we should skip downloading
     let skip_download = args.info_only || args.no_download;

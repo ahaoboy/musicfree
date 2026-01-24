@@ -92,12 +92,113 @@ pub struct ContentPlaybackContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YtInitialData {
     pub contents: Contents,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub header: Option<PlaylistHeader>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Contents {
     #[serde(rename = "twoColumnWatchNextResults")]
-    pub two_column_watch_next_results: TwoColumnWatchNextResults,
+    pub two_column_watch_next_results: Option<TwoColumnWatchNextResults>,
+
+    #[serde(rename = "twoColumnBrowseResultsRenderer")]
+    pub two_column_browse_results_renderer: Option<TwoColumnBrowseResultsRenderer>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TwoColumnBrowseResultsRenderer {
+    pub tabs: Vec<Tab>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistHeader {
+    #[serde(rename = "playlistHeaderRenderer")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub playlist_header_renderer: Option<PlaylistHeaderRenderer>,
+    #[serde(rename = "pageHeaderRenderer")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_header_renderer: Option<PageHeaderRenderer>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistHeaderRenderer {
+    pub title: Option<Title>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageHeaderRenderer {
+    #[serde(rename = "pageTitle")]
+    pub page_title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tab {
+    #[serde(rename = "tabRenderer")]
+    pub tab_renderer: TabRenderer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TabRenderer {
+    pub selected: bool,
+    pub content: TabContent,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TabContent {
+    #[serde(rename = "sectionListRenderer")]
+    pub section_list_renderer: SectionListRenderer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SectionListRenderer {
+    pub contents: Vec<SectionContent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SectionContent {
+    #[serde(rename = "itemSectionRenderer")]
+    pub item_section_renderer: Option<ItemSectionRenderer>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemSectionRenderer {
+    pub contents: Vec<ItemContent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemContent {
+    #[serde(rename = "playlistVideoListRenderer")]
+    pub playlist_video_list_renderer: PlaylistVideoListRenderer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistVideoListRenderer {
+    pub contents: Vec<VideoElement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VideoElement {
+    #[serde(rename = "playlistVideoRenderer")]
+    pub playlist_video_renderer: PlaylistVideoRenderer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistVideoRenderer {
+    #[serde(rename = "videoId")]
+    pub video_id: String,
+    #[serde(rename = "lengthSeconds")]
+    pub length_seconds: String,
+    pub title: PlaylistVideoRendererTitle,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistVideoRendererTitle {
+    pub runs: Vec<PlaylistVideoRendererTitleRun>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistVideoRendererTitleRun {
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
