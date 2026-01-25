@@ -149,3 +149,23 @@ pub fn parse_playlist_id(url: &str) -> Option<String> {
     }
     None
 }
+
+/// Construct YouTube watch URL from video ID
+pub fn build_watch_url(video_id: &str) -> String {
+    format!("https://www.youtube.com/watch?v={}", video_id)
+}
+
+/// Construct YouTube playlist URL from playlist ID
+pub fn build_playlist_url(playlist_id: &str) -> String {
+    format!("https://www.youtube.com/playlist?list={}", playlist_id)
+}
+
+/// Construct YouTube watch URL with playlist parameter
+pub fn build_watch_url_with_playlist(video_id: &str, playlist_id: &str) -> String {
+    format!("https://www.youtube.com/watch?v={}&list={}", video_id, playlist_id)
+}
+
+/// Construct YouTube thumbnail URL from video ID
+pub fn build_thumbnail_url(video_id: &str) -> String {
+    format!("https://i.ytimg.com/vi/{}/hq720.jpg", video_id)
+}

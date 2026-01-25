@@ -38,6 +38,7 @@ impl Extractor for FileExtractor {
 
         let playlist = Playlist {
             id: None,
+            download_url: Some(url.to_string()),
             title: None,
             audios: vec![audio],
             cover: None,

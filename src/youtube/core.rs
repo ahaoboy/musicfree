@@ -93,16 +93,16 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     let fetch_url = if is_playlist {
         // For playlists, extract playlist ID and construct playlist URL
         if crate::youtube::utils::is_valid_playlist_id(url) {
-            format!("https://www.youtube.com/playlist?list={}", url)
+            crate::youtube::utils::build_playlist_url(url)
         } else if let Some(playlist_id) = crate::youtube::utils::parse_playlist_id(url) {
-            format!("https://www.youtube.com/playlist?list={}", playlist_id)
+            crate::youtube::utils::build_playlist_url(&playlist_id)
         } else {
             url.to_string()
         }
     } else {
         // For single videos, construct watch URL
         if crate::youtube::utils::is_valid_video_id(url) {
-            format!("https://www.youtube.com/watch?v={}", url)
+            crate::youtube::utils::build_watch_url(url)
         } else {
             url.to_string()
         }
@@ -124,17 +124,17 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
         parse_player(video_id, &ytcfg).await?
     };
     let title = &player_response.video_details.title;
-    let audios = extract_audio_formats_web(&player_response)?
+    let audios: Vec<Audio> = extract_audio_formats_web(&player_response)?
         .into_iter()
         .map(|i| {
             let mut audio = Audio::new(
                 video_id.clone(),
                 title.clone(),
-                format!("https://www.youtube.com/watch?v={video_id}"),
+                crate::youtube::utils::build_watch_url(video_id),
                 Platform::Youtube,
             )
             .with_format(AudioFormat::from_youtube(&i.mime_type))
-            .with_cover(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg"));
+            .with_cover(crate::youtube::utils::build_thumbnail_url(video_id));
             if let Some(ms) = i
                 .approx_duration_ms
                 .clone()
@@ -146,11 +146,15 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
         })
         .collect();
 
+    // For single video, use first audio's download_url
+    let download_url = audios.first().map(|a| a.download_url.clone());
+
     let playlist = Playlist {
         id: None,
+        download_url,
         title: Some(title.clone()),
         audios,
-        cover: Some(format!("https://i.ytimg.com/vi/{video_id}/hq720.jpg")),
+        cover: Some(crate::youtube::utils::build_thumbnail_url(video_id)),
         platform: Platform::Youtube,
     };
 
@@ -201,10 +205,7 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
             format!("https://www.youtube.com{}", video.url),
             Platform::Youtube,
         )
-        .with_cover(format!(
-            "https://i.ytimg.com/vi/{}/hq720.jpg",
-            video.video_id
-        ));
+        .with_cover(crate::youtube::utils::build_thumbnail_url(&video.video_id));
 
         if let Some(d) = video.duration {
             audio.duration = Some(d);
@@ -213,8 +214,13 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
     }
 
     let cover = audios.iter().find_map(|i| i.cover.clone());
+
+    // Construct playlist download URL
+    let playlist_download_url = Some(crate::youtube::utils::build_playlist_url(&playlist_id));
+
     let playlist = Playlist {
         id: Some(playlist_id.clone()),
+        download_url: playlist_download_url,
         title: Some(playlist_title),
         audios,
         cover,
@@ -238,7 +244,7 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let mut headers = HeaderMap::new();
     headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
     // Step 1: Fetch video page
-    let pagr_url = format!("https://www.youtube.com/watch?v={}", video_id);
+    let pagr_url = crate::youtube::utils::build_watch_url(video_id);
     let html = download_text(&pagr_url, headers.clone()).await?;
 
     let ytcfg = parse_ytcfg(&html)?;

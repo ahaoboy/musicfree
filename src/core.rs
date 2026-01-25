@@ -122,6 +122,8 @@ pub struct Playlist {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub audios: Vec<Audio>,
@@ -135,6 +137,7 @@ impl Playlist {
     pub fn new(id: Option<String>, title: Option<String>, platform: Platform) -> Self {
         Self {
             id,
+            download_url: None,
             title,
             audios: Vec::new(),
             cover: None,

@@ -241,6 +241,7 @@ fn display_audio_info(
     playlist_title: &Option<String>,
     playlist_id: &Option<String>,
     playlist_cover: &Option<String>,
+    playlist_download_url: &Option<String>,
     position: Option<usize>,
     audios: &[musicfree::core::Audio],
 ) {
@@ -251,6 +252,10 @@ fn display_audio_info(
 
     if let Some(id) = playlist_id {
         println!("Playlist ID: {}", id);
+    }
+
+    if let Some(url) = playlist_download_url {
+        println!("Playlist URL: {}", url);
     }
 
     if let Some(cover) = playlist_cover {
@@ -273,6 +278,7 @@ fn display_audio_info(
     if playlist_title.is_some()
         || playlist_id.is_some()
         || playlist_cover.is_some()
+        || playlist_download_url.is_some()
         || position.is_some()
     {
         println!();
@@ -451,6 +457,7 @@ async fn main() {
     let playlist_id = playlist.id.clone();
     let playlist_title = playlist.title.clone();
     let playlist_cover = playlist.cover.clone();
+    let playlist_download_url = playlist.download_url.clone();
     let mut audios = playlist.audios;
 
     if audios.is_empty() {
@@ -503,6 +510,7 @@ async fn main() {
         &playlist_title,
         &playlist_id,
         &playlist_cover,
+        &playlist_download_url,
         position,
         &audios,
     );

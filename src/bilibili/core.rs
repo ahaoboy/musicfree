@@ -98,8 +98,13 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
         (view.data.title, view.data.pic)
     };
 
+    // For Bilibili, use first audio's download_url (or construct from bvid)
+    let download_url = audios.first().map(|a| a.download_url.clone())
+        .or_else(|| Some(format!("https://www.bilibili.com/video/{}", view.data.bvid)));
+
     let playlist = Playlist {
         id: Some(view.data.bvid),
+        download_url,
         title: Some(title),
         audios,
         cover: Some(cover),
