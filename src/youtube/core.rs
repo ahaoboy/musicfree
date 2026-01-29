@@ -6,7 +6,8 @@ use crate::youtube::types::{
     PlayerResponse, PlaylistContent, Title, YtConfig, YtInitialData,
 };
 use crate::youtube::utils::{
-    ANDROID_USER_AGENT, WEB_USER_AGENT, build_playlist_url, build_thumbnail_url, build_watch_url, is_valid_playlist_id, is_valid_video_id, parse_playlist_id
+    ANDROID_USER_AGENT, WEB_USER_AGENT, build_playlist_url, build_thumbnail_url, build_watch_url,
+    is_valid_playlist_id, is_valid_video_id, parse_playlist_id,
 };
 use crate::{Audio, AudioFormat, Platform, Playlist};
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
@@ -96,7 +97,6 @@ fn get_fetch_url(url: &str) -> (String, bool) {
     }
     (url.to_string(), false)
 }
-
 
 /// Extract playlist information from YouTube URL or ID
 pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
@@ -236,18 +236,22 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let video_id = &parse_id(url)?;
 
     let mut headers = HeaderMap::new();
-    headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
+    // FIXME: android_sdkless 403
+    headers.insert(USER_AGENT, HeaderValue::from_static(WEB_USER_AGENT));
     // Step 1: Fetch video page
     let pagr_url = build_watch_url(video_id);
     let html = download_text(&pagr_url, headers.clone()).await?;
 
-    let ytcfg = parse_ytcfg(&html)?;
-
     // Step 2: Extract player response from HTML
-    let player_response = if let Ok(pr) = parse_player(video_id, &ytcfg).await {
-        pr
+    let (player_response, is_web) = if let Ok(pr) = parse_player_response_from_html(&html) {
+        (pr, true)
     } else {
-        parse_player_response_from_html(&html)?
+        let mut headers = HeaderMap::new();
+        // FIXME: android_sdkless 403
+        headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
+        let html = download_text(&pagr_url, headers).await?;
+        let ytcfg = parse_ytcfg(&html)?;
+        (parse_player(video_id, &ytcfg).await?, false)
     };
 
     // Step 4: Extract audio formats
@@ -256,7 +260,7 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     // Step 5: Select best audio format (prefer itag 140)
     let format = formats
         .iter()
-        .find(|f| f.itag == 140)
+        .find(|f| f.itag == if is_web { 18 } else { 140 })
         .or_else(|| formats.iter().find(|f| f.mime_type.starts_with("audio/")))
         .or_else(|| formats.first())
         .ok_or(MusicFreeError::AudioNotFound)?;
@@ -294,8 +298,12 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
             }
         }
     };
-
-    headers.insert(USER_AGENT, WEB_USER_AGENT.parse().unwrap());
+    let ua = if is_web {
+        WEB_USER_AGENT
+    } else {
+        ANDROID_USER_AGENT
+    };
+    headers.insert(USER_AGENT, HeaderValue::from_static(ua));
     // Step 6: Download audio
     download_binary(&download_url, headers).await
 }
@@ -325,29 +333,48 @@ pub fn parse_ytcfg(html: &str) -> Result<YtConfig> {
         .map_err(|e| MusicFreeError::ConfigParseError(format!("Failed to parse ytcfg JSON: {}", e)))
 }
 
-/// Extract player response from HTML
 pub fn parse_player_response_from_html(html: &str) -> Result<PlayerResponse> {
-    let st = "var ytInitialPlayerResponse = ";
-    let ed = "};";
+    let pattern = "var ytInitialPlayerResponse = ";
+    let mut current_pos = 0;
 
-    // Find start position
-    let st_index = html.find(st).ok_or_else(|| {
-        MusicFreeError::ConfigParseError("ytInitialPlayerResponse not found".to_string())
-    })? + st.len();
+    let mut last_error =
+        MusicFreeError::ConfigParseError("ytInitialPlayerResponse not found".to_string());
 
-    // Find end position after start
-    let remaining_html = &html[st_index..];
-    let ed_offset = remaining_html.find(ed).ok_or_else(|| {
-        MusicFreeError::ConfigParseError("ytInitialPlayerResponse end not found".to_string())
-    })? + 1; // +1 to include "}"
-    let ed_index = st_index + ed_offset;
+    while let Some(st_offset) = html[current_pos..].find(pattern) {
+        let st_index = current_pos + st_offset + pattern.len();
 
-    // Extract JSON string
-    let json = &html[st_index..ed_index];
+        if let Some(ed_offset) = html[st_index..].find("};") {
+            let ed_index = st_index + ed_offset + 1; // +1
+            let json_str = &html[st_index..ed_index];
+            // let _ = std::fs::write("yt.json", json_str);
 
-    serde_json::from_str(json).map_err(|e| {
-        MusicFreeError::ConfigParseError(format!("Failed to parse player response JSON: {}", e))
-    })
+            match serde_json::from_str::<serde_json::Value>(json_str) {
+                Ok(value) if !value.is_null() => {
+                    match serde_json::from_value::<PlayerResponse>(value) {
+                        Ok(response) => {
+                            return Ok(response);
+                        }
+                        Err(e) => {
+                            last_error =
+                                MusicFreeError::ConfigParseError(format!("Schema mismatch: {}", e));
+                        }
+                    }
+                }
+                Ok(_) => {
+                    // skip null
+                }
+                Err(e) => {
+                    last_error =
+                        MusicFreeError::ConfigParseError(format!("Invalid JSON block: {}", e));
+                }
+            }
+            current_pos = ed_index;
+        } else {
+            current_pos = st_index;
+        }
+    }
+
+    Err(last_error)
 }
 
 /// Extract ytInitialData from HTML
