@@ -67,7 +67,7 @@ pub fn is_valid_playlist_id(id: &str) -> bool {
     let has_valid_prefix = id.starts_with("PL")
         || id.starts_with("UU")
         || id.starts_with("LL")
-        || id.starts_with("RD")
+        // || id.starts_with("RD") // skip RD (Radio/MIX)
         || id.starts_with("OL")
         || id.starts_with("FL");
 
