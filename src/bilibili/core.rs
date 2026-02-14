@@ -92,18 +92,29 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
         audios.push(audio);
     }
 
-    let (title, cover) = if let Some(ugc) = view.data.ugc_season {
-        (ugc.title, ugc.cover)
+    let (title, cover) = if let Some(ugc) = &view.data.ugc_season {
+        (ugc.title.clone(), ugc.cover.clone())
     } else {
         (view.data.title, view.data.pic)
     };
 
     // For Bilibili, use first audio's download_url (or construct from bvid)
-    let download_url = audios.first().map(|a| a.download_url.clone())
+    let download_url = audios
+        .first()
+        .map(|a| a.download_url.clone())
         .or_else(|| Some(format!("https://www.bilibili.com/video/{}", view.data.bvid)));
 
+    // Set playlist ID with fallback order: ugc_season.id -> season_id -> bvid
+    let playlist_id = view
+        .data
+        .ugc_season
+        .as_ref()
+        .map(|i| i.id.to_string())
+        .or_else(|| view.data.season_id.map(|id| id.to_string()))
+        .or_else(|| Some(view.data.bvid.clone()));
+
     let playlist = Playlist {
-        id: Some(view.data.bvid),
+        id: playlist_id,
         download_url,
         title: Some(title),
         audios,

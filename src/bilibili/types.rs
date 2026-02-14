@@ -9,6 +9,7 @@ pub struct ViewResponse {
 pub struct ViewData {
     pub cid: u64,
     pub bvid: String,
+    pub season_id: Option<u64>,
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aid: Option<u64>,
