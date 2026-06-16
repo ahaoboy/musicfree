@@ -257,10 +257,10 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     // Step 4: Extract audio formats
     let formats = extract_audio_formats_web(&player_response)?;
 
-    // Step 5: Select best audio format (prefer itag 140)
+    // Step 5: Select best audio format (prefer itag 140 for audio-only)
     let format = formats
         .iter()
-        .find(|f| f.itag == if is_web { 18 } else { 140 })
+        .find(|f| f.itag == 140)
         .or_else(|| formats.iter().find(|f| f.mime_type.starts_with("audio/")))
         .or_else(|| formats.first())
         .ok_or(MusicFreeError::AudioNotFound)?;
@@ -304,6 +304,10 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
         ANDROID_USER_AGENT
     };
     headers.insert(USER_AGENT, HeaderValue::from_static(ua));
+    headers.insert(
+        reqwest::header::REFERER,
+        HeaderValue::from_static("https://www.youtube.com/"),
+    );
     // Step 6: Download audio
     download_binary(&download_url, headers).await
 }
