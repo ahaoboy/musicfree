@@ -3,6 +3,7 @@ use crate::error::{MusicFreeError, Result};
 pub const WEB_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 pub const ANDROID_USER_AGENT: &str =
     "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip";
+pub const ANDROID_VR_USER_AGENT: &str = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip";
 
 /// Parse video ID from YouTube URL or direct video ID string
 pub fn parse_id(url: &str) -> Result<String> {
@@ -53,7 +54,10 @@ pub fn parse_id(url: &str) -> Result<String> {
 
 /// Validate if a string is a valid YouTube video ID (11 characters, alphanumeric + - and _)
 pub fn is_valid_video_id(id: &str) -> bool {
-    id.len() == 11 && id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    id.len() == 11
+        && id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }
 
 /// Validate if a string is a valid YouTube playlist ID
@@ -72,7 +76,9 @@ pub fn is_valid_playlist_id(id: &str) -> bool {
         || id.starts_with("FL");
 
     // All characters should be alphanumeric, -, or _
-    let valid_chars = id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_');
+    let valid_chars = id
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_');
 
     has_valid_prefix && valid_chars
 }
@@ -86,13 +92,14 @@ pub fn is_youtube_url(url: &str) -> bool {
 
     // Parse URL to check domain strictly
     if let Ok(parsed) = url::Url::parse(url)
-        && let Some(domain) = parsed.domain() {
-            // Strict domain matching - must be exactly youtube.com or youtu.be (or subdomains)
-            return domain == "youtube.com"
-                || domain.ends_with(".youtube.com")
-                || domain == "youtu.be"
-                || domain.ends_with(".youtu.be");
-        }
+        && let Some(domain) = parsed.domain()
+    {
+        // Strict domain matching - must be exactly youtube.com or youtu.be (or subdomains)
+        return domain == "youtube.com"
+            || domain.ends_with(".youtube.com")
+            || domain == "youtu.be"
+            || domain.ends_with(".youtu.be");
+    }
 
     // Fallback for URLs without scheme
     let normalized = if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -102,12 +109,13 @@ pub fn is_youtube_url(url: &str) -> bool {
     };
 
     if let Ok(parsed) = url::Url::parse(&normalized)
-        && let Some(domain) = parsed.domain() {
-            return domain == "youtube.com"
-                || domain.ends_with(".youtube.com")
-                || domain == "youtu.be"
-                || domain.ends_with(".youtu.be");
-        }
+        && let Some(domain) = parsed.domain()
+    {
+        return domain == "youtube.com"
+            || domain.ends_with(".youtube.com")
+            || domain == "youtu.be"
+            || domain.ends_with(".youtu.be");
+    }
 
     false
 }
@@ -162,7 +170,10 @@ pub fn build_playlist_url(playlist_id: &str) -> String {
 
 /// Construct YouTube watch URL with playlist parameter
 pub fn build_watch_url_with_playlist(video_id: &str, playlist_id: &str) -> String {
-    format!("https://www.youtube.com/watch?v={}&list={}", video_id, playlist_id)
+    format!(
+        "https://www.youtube.com/watch?v={}&list={}",
+        video_id, playlist_id
+    )
 }
 
 /// Construct YouTube thumbnail URL from video ID

@@ -1,7 +1,7 @@
 use crate::Playlist;
 use crate::bilibili::types::{AudioInfo, PlayUrlResponse, ViewResponse};
 use crate::core::{Platform, Quality};
-use crate::download::{download_binary, download_json, download_text};
+use crate::download::{download_binary_chunked, download_json, download_text};
 use crate::error::{MusicFreeError, Result};
 use crate::{Audio, AudioFormat};
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -190,14 +190,7 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     };
     let audio_url = format!("https://www.bilibili.com/video/{}", bvid);
     let mut headers = HeaderMap::new();
-    headers.insert("accept", HeaderValue::from_static("*/*"));
-    headers.insert(
-        "accept-encoding",
-        HeaderValue::from_static("gzip, deflate, br"),
-    );
-    headers.insert("connection", HeaderValue::from_static("keep-alive"));
-    headers.insert("referer", HeaderValue::from_str(&audio_url)?);
-    headers.insert("range", HeaderValue::from_static("bytes=0-"));
-    let bin = download_binary(&media_url, headers).await?;
+    headers.insert(reqwest::header::REFERER, HeaderValue::from_str(&audio_url)?);
+    let bin = download_binary_chunked(&media_url, headers).await?;
     Ok(bin)
 }

@@ -2,6 +2,7 @@
 Cargo.lock
 dist
 .agent
+/*.js
 
 # Audio formats
 *.mp3

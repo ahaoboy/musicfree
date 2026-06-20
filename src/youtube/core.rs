@@ -1,4 +1,4 @@
-use crate::download::{download_binary, download_text, post_json};
+use crate::download::{download_text, post_json};
 use crate::error::{MusicFreeError, Result};
 use crate::youtube::parse_id;
 use crate::youtube::types::{
@@ -6,17 +6,13 @@ use crate::youtube::types::{
     PlayerResponse, PlaylistContent, Title, YtConfig, YtInitialData,
 };
 use crate::youtube::utils::{
-    ANDROID_USER_AGENT, WEB_USER_AGENT, build_playlist_url, build_thumbnail_url, build_watch_url,
-    is_valid_playlist_id, is_valid_video_id, parse_playlist_id,
+    ANDROID_VR_USER_AGENT, WEB_USER_AGENT, build_playlist_url, build_thumbnail_url,
+    build_watch_url, is_valid_playlist_id, is_valid_video_id, parse_playlist_id,
 };
 use crate::{Audio, AudioFormat, Platform, Playlist};
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
 
-#[cfg(feature = "ytdlp-ejs")]
-use crate::youtube::ejs::{solve_cipher, solve_n};
-
-#[cfg(feature = "ytdlp-ejs")]
-async fn get_player_url(html: &str) -> Option<String> {
+pub(crate) async fn get_player_url(html: &str) -> Option<String> {
     let marker = r#"name="player/base""#;
     let marker_pos = html.find(marker)?;
     let before_marker = &html[..marker_pos];
@@ -47,12 +43,14 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
     );
 
     let client = serde_json::json!({
-          "clientName": "ANDROID",
-          "clientVersion": "20.10.38",
-          // "androidSdkVersion": 30,
-          "userAgent": ANDROID_USER_AGENT,
+          "clientName": "ANDROID_VR",
+          "clientVersion": "1.65.10",
+          "deviceMake": "Oculus",
+          "deviceModel": "Quest 3",
+          "androidSdkVersion": 32,
+          "userAgent": ANDROID_VR_USER_AGENT,
           "osName": "Android",
-          "osVersion": "11",
+          "osVersion": "12L",
     });
 
     let request_body = InnertubeRequest {
@@ -70,11 +68,11 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
 
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(USER_AGENT, HeaderValue::from_str(ANDROID_USER_AGENT)?);
-    headers.insert("X-YouTube-Client-Name", HeaderValue::from_static("3"));
+    headers.insert(USER_AGENT, HeaderValue::from_str(ANDROID_VR_USER_AGENT)?);
+    headers.insert("X-YouTube-Client-Name", HeaderValue::from_static("28"));
     headers.insert(
         "X-YouTube-Client-Version",
-        HeaderValue::from_str(&ytcfg.innertube_client_version)?,
+        HeaderValue::from_static("1.65.10"),
     );
     headers.insert(ORIGIN, HeaderValue::from_static("https://www.youtube.com"));
 
@@ -231,85 +229,45 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
     Ok((playlist, final_position))
 }
 
-/// Download audio using web client with EJS decryption
+/// Download audio with Android-first, Web+EJS fallback strategy (yt-dlp style).
+///
+/// Phase 1 (Android): Fetch Android Innertube API → `c=ANDROID` URL → download.
+///   Android CDN is more lenient and usually works without a browser fingerprint.
+///
+/// Phase 2 (Web fallback): If Android fails, extract player_response from web HTML,
+///   decrypt signatureCipher via EJS, and download with Web UA.
+/// Download audio: Android-first with Web+EJS fallback.
+///
+/// Phase 1 → `android::android_download` (Android Innertube API)
+/// Phase 2 → `web::web_download` (Web HTML + EJS decryption)
 pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let video_id = &parse_id(url)?;
+    let page_url = build_watch_url(video_id);
+    let mut web_headers = HeaderMap::new();
+    web_headers.insert(USER_AGENT, HeaderValue::from_static(WEB_USER_AGENT));
+    let html = download_text(&page_url, web_headers).await?;
+    let ytcfg = parse_ytcfg(&html)?;
 
-    let mut headers = HeaderMap::new();
-    // FIXME: android_sdkless 403
-    headers.insert(USER_AGENT, HeaderValue::from_static(WEB_USER_AGENT));
-    // Step 1: Fetch video page
-    let pagr_url = build_watch_url(video_id);
-    let html = download_text(&pagr_url, headers.clone()).await?;
+    match crate::youtube::android::android_download(video_id, &ytcfg, &html).await {
+        Ok(data) => return Ok(data),
+        #[allow(unused_variables)]
+        Err(e) => {
+            #[cfg(debug_assertions)]
+            eprintln!("[debug] Android download failed: {e}, falling back to Web+EJS");
+        }
+    }
+    crate::youtube::web::web_download(&html).await
+}
 
-    // Step 2: Extract player response from HTML
-    let (player_response, is_web) = if let Ok(pr) = parse_player_response_from_html(&html) {
-        (pr, true)
-    } else {
-        let mut headers = HeaderMap::new();
-        // FIXME: android_sdkless 403
-        headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_USER_AGENT));
-        let html = download_text(&pagr_url, headers).await?;
-        let ytcfg = parse_ytcfg(&html)?;
-        (parse_player(video_id, &ytcfg).await?, false)
-    };
-
-    // Step 4: Extract audio formats
-    let formats = extract_audio_formats_web(&player_response)?;
-
-    // Step 5: Select best audio format (prefer itag 140 for audio-only)
-    let format = formats
+/// Select best audio format: prefer itag 140 (m4a audio-only).
+pub fn select_best_audio_format<'a>(formats: &'a [&'a Format]) -> Result<&'a Format> {
+    formats
         .iter()
         .find(|f| f.itag == 140)
         .or_else(|| formats.iter().find(|f| f.mime_type.starts_with("audio/")))
         .or_else(|| formats.first())
-        .ok_or(MusicFreeError::AudioNotFound)?;
-
-    let download_url = {
-        #[cfg(not(feature = "ytdlp-ejs"))]
-        {
-            if let Some(url) = &format.url {
-                url.clone()
-            } else if let Some(cipher) = &format.signature_cipher {
-                cipher.clone()
-            } else {
-                return Err(MusicFreeError::AudioNotFound);
-            }
-        }
-
-        #[cfg(feature = "ytdlp-ejs")]
-        {
-            let player_url = get_player_url(&html)
-                .await
-                .ok_or(MusicFreeError::PlayerJsNotFound)?;
-            // Step 3: Download player JS if available
-            let player_js_content = download_text(&player_url, HeaderMap::new()).await?;
-
-            if let Some(url) = &format.url {
-                if url.contains("&n=") && url.contains("&sig=") {
-                    solve_n(url, player_js_content.clone())?
-                } else {
-                    url.clone()
-                }
-            } else if let Some(cipher) = &format.signature_cipher {
-                solve_cipher(cipher, player_js_content)?
-            } else {
-                return Err(MusicFreeError::AudioNotFound);
-            }
-        }
-    };
-    let ua = if is_web {
-        WEB_USER_AGENT
-    } else {
-        ANDROID_USER_AGENT
-    };
-    headers.insert(USER_AGENT, HeaderValue::from_static(ua));
-    headers.insert(
-        reqwest::header::REFERER,
-        HeaderValue::from_static("https://www.youtube.com/"),
-    );
-    // Step 6: Download audio
-    download_binary(&download_url, headers).await
+        .copied()
+        .ok_or(MusicFreeError::AudioNotFound)
 }
 
 /// Extract ytcfg configuration from HTML

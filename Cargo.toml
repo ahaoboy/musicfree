@@ -13,10 +13,11 @@ default = ["cli", "bilibili", "youtube", "qjs"]
 bindgen = ["ytdlp-ejs/bindgen"]
 qjs = ["ytdlp-ejs", "ytdlp-ejs/qjs"]
 boa = ["ytdlp-ejs", "ytdlp-ejs/boa", "dep:icu_normalizer"]
-cli = ["dep:clap", "dep:tokio"]
+cli = ["dep:clap"]
 bilibili = []
 youtube = []
 ytdlp-ejs = ["dep:ytdlp-ejs"]
+dev = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -40,7 +41,8 @@ tokio = { version = "1", features = [
   "rt-multi-thread",
   "process",
   "time",
-], default-features = false, optional = true }
+], default-features = false }
+rand = "0.8"
 thiserror = "2"
 regex = "1"
 urlencoding = "2"

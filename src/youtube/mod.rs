@@ -6,6 +6,8 @@ use async_trait::async_trait;
 pub mod core;
 pub mod types;
 pub mod utils;
+pub mod android;
+pub mod web;
 
 // Re-export commonly used types and functions
 pub use core::*;
