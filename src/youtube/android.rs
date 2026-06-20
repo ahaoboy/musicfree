@@ -4,15 +4,13 @@
 //! CDN URLs that don't require a full browser TLS fingerprint.
 
 use crate::download::{download_binary_chunked, download_text};
+use crate::headers::{download_headers, with_origin, with_sec_fetch};
 use crate::error::{MusicFreeError, Result};
 use crate::youtube::core::{
     extract_audio_formats_web, get_player_url, parse_player, select_best_audio_format,
 };
 use crate::youtube::types::{Format, YtConfig};
-use reqwest::header::{
-    ACCEPT, ACCEPT_LANGUAGE, CONNECTION, HeaderMap, HeaderName, HeaderValue, ORIGIN, REFERER,
-    USER_AGENT,
-};
+use reqwest::header::HeaderMap;
 
 use super::utils::ANDROID_VR_USER_AGENT;
 
@@ -50,24 +48,9 @@ pub async fn android_download(video_id: &str, ytcfg: &YtConfig, html: &str) -> R
     #[cfg(debug_assertions)]
     eprintln!("[debug] Android download URL: {download_url}");
 
-    let mut dl_headers = HeaderMap::new();
-    dl_headers.insert(USER_AGENT, HeaderValue::from_static(ANDROID_VR_USER_AGENT));
-    dl_headers.insert(ACCEPT, HeaderValue::from_static("*/*"));
-    dl_headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
-    dl_headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
-    dl_headers.insert(
-        REFERER,
-        HeaderValue::from_static("https://www.youtube.com/"),
-    );
-    dl_headers.insert(ORIGIN, HeaderValue::from_static("https://www.youtube.com"));
-    dl_headers.insert(
-        HeaderName::from_static("sec-fetch-mode"),
-        HeaderValue::from_static("no-cors"),
-    );
-    dl_headers.insert(
-        HeaderName::from_static("sec-fetch-site"),
-        HeaderValue::from_static("cross-site"),
-    );
+    let mut dl_headers = download_headers(ANDROID_VR_USER_AGENT, "https://www.youtube.com/");
+    with_origin(&mut dl_headers, "https://www.youtube.com");
+    with_sec_fetch(&mut dl_headers);
 
     download_binary_chunked(&download_url, dl_headers).await
 }

@@ -3,8 +3,11 @@ use crate::bilibili::types::{AudioInfo, PlayUrlResponse, ViewResponse};
 use crate::core::{Platform, Quality};
 use crate::download::{download_binary_chunked, download_json, download_text};
 use crate::error::{MusicFreeError, Result};
+use crate::headers::{download_headers, with_accept_encoding, with_accept_language, with_origin};
 use crate::{Audio, AudioFormat};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
+
+use crate::download::DEFAULT_USER_AGENT;
 
 /// Extract audio info from view response
 pub fn get_audio_info(view: &ViewResponse) -> Vec<AudioInfo> {
@@ -189,8 +192,10 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
         ));
     };
     let audio_url = format!("https://www.bilibili.com/video/{}", bvid);
-    let mut headers = HeaderMap::new();
-    headers.insert(reqwest::header::REFERER, HeaderValue::from_str(&audio_url)?);
+    let mut headers = download_headers(DEFAULT_USER_AGENT, &audio_url);
+    with_accept_encoding(&mut headers, "gzip, deflate, br");
+    with_accept_language(&mut headers, "zh-CN,zh;q=0.9,en;q=0.8");
+    with_origin(&mut headers, "https://www.bilibili.com");
     let bin = download_binary_chunked(&media_url, headers).await?;
     Ok(bin)
 }

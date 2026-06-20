@@ -1,7 +1,8 @@
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use reqwest::header::USER_AGENT;
 use reqwest::{
     Client,
-    header::{HeaderMap, HeaderValue, RANGE, USER_AGENT},
+    header::{HeaderMap, HeaderValue, RANGE},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use std::{sync::OnceLock, time::Duration};

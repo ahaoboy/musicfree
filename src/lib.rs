@@ -2,6 +2,7 @@ pub mod core;
 mod download;
 pub mod error;
 pub mod file;
+pub mod headers;
 
 #[cfg(feature = "bilibili")]
 pub mod bilibili;
