@@ -33,8 +33,7 @@ pub async fn web_download(html: &str) -> Result<Vec<u8>> {
 
     let format = player_response
         .streaming_data
-        .best_audio_format()
-        .or_else(|| player_response.streaming_data.first_downloadable())
+        .best_playable_format()
         .ok_or(MusicFreeError::AudioNotFound)?;
 
     #[cfg(debug_assertions)]

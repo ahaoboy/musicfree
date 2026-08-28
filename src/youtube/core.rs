@@ -122,7 +122,7 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     // no *usable* audio format (YouTube often omits direct stream URLs on watch
     // pages, so an otherwise-valid embedded response can still lack them).
     let player_response = match parse_player_response_from_html(&html) {
-        Ok(pr) if pr.streaming_data.first_downloadable().is_some() => pr,
+        Ok(pr) if pr.streaming_data.best_playable_format().is_some() => pr,
         _ => parse_player(video_id, &ytcfg).await?,
     };
     let title = &player_response.video_details.title;
@@ -131,8 +131,7 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     // exposes direct URLs for muxed formats.
     let best_format = player_response
         .streaming_data
-        .best_audio_format()
-        .or_else(|| player_response.streaming_data.first_downloadable())
+        .best_playable_format()
         .ok_or(MusicFreeError::AudioNotFound)?;
     let audios: Vec<Audio> = [best_format]
         .into_iter()
