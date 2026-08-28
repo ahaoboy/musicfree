@@ -7,11 +7,9 @@
 use crate::download::{download_binary_chunked, download_text};
 use crate::headers::{download_headers, with_origin, with_sec_fetch};
 use crate::error::{MusicFreeError, Result};
-use crate::youtube::core::{
-    extract_audio_formats_web, get_player_url, parse_player_response_from_html,
-    select_best_audio_format,
-};
+use crate::youtube::core::parse_player_response_from_html;
 use reqwest::header::HeaderMap;
+use serde_youtube::types::Format;
 
 use super::utils::WEB_USER_AGENT;
 
@@ -33,8 +31,10 @@ pub async fn web_download(html: &str) -> Result<Vec<u8>> {
         eprintln!("[debug] Web HTML: title={title:?}");
     }
 
-    let formats = extract_audio_formats_web(&player_response)?;
-    let format = select_best_audio_format(&formats)?;
+    let format = player_response
+        .streaming_data
+        .best_audio_format()
+        .ok_or(MusicFreeError::AudioNotFound)?;
 
     #[cfg(debug_assertions)]
     eprintln!(
@@ -57,20 +57,15 @@ pub async fn web_download(html: &str) -> Result<Vec<u8>> {
 /// Resolve the download URL for a Web format.
 /// Web formats often use `signatureCipher` which needs both s and n decryption,
 /// or have a plain `url` with just `&n=` that needs decryption.
-async fn resolve_web_url(format: &crate::youtube::types::Format, html: &str) -> Result<String> {
+async fn resolve_web_url(format: &Format, html: &str) -> Result<String> {
     #[cfg(not(feature = "ytdlp-ejs"))]
     {
-        format
-            .url
-            .clone()
-            .or_else(|| format.signature_cipher.clone())
-            .ok_or(MusicFreeError::AudioNotFound)
+        format.candidate_url().ok_or(MusicFreeError::AudioNotFound)
     }
 
     #[cfg(feature = "ytdlp-ejs")]
     {
-        let player_url = get_player_url(html)
-            .await
+        let player_url = serde_youtube::parser::player_js_url(html)
             .ok_or(MusicFreeError::PlayerJsNotFound)?;
         let player_js_content = download_text(&player_url, HeaderMap::new()).await?;
 

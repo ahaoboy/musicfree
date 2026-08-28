@@ -4,6 +4,7 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, RANGE},
 };
 use serde::{Serialize, de::DeserializeOwned};
+use serde_cookie::{Cookie, CookieJar};
 use std::{sync::OnceLock, time::Duration};
 
 use crate::error::{MusicFreeError, Result};
@@ -13,9 +14,9 @@ pub(crate) const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64
 
 pub fn get_http_client() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
-    let cookie_jar = recommended_cookies();
 
     CLIENT.get_or_init(|| {
+        let cookie_jar = build_cookie_jar();
         reqwest::Client::builder()
             .timeout(DEFAULT_TIMEOUT)
             .connect_timeout(DEFAULT_TIMEOUT)
@@ -28,13 +29,55 @@ pub fn get_http_client() -> &'static Client {
     })
 }
 
-pub fn recommended_cookies() -> reqwest::cookie::Jar {
-    let cookie =
-        "CONSENT=YES+; Path=/; Domain=youtube.com; Secure; Expires=Fri, 01 Jan 2038 00:00:00 GMT;";
-    let url = "https://youtube.com".parse().unwrap();
+/// Custom cookies loaded from a user-supplied cookies file.
+/// Populated via [`load_cookies_from_file`]; must be set before the first
+/// network request (i.e. at startup) since the HTTP client is built lazily.
+static CUSTOM_COOKIES: OnceLock<CookieJar> = OnceLock::new();
 
+/// Load cookies from a Netscape-format `cookies.txt` file (yt-dlp style) and
+/// merge them into the HTTP client's jar for all subsequent requests.
+///
+/// Each non-comment line is tab-separated:
+/// `domain \t include_subdomains \t path \t secure \t expiry \t name \t value`
+pub fn load_cookies_from_file(path: &str) -> Result<()> {
+    let jar = CookieJar::from_path(path)?;
+    if jar.is_empty() {
+        return Err(MusicFreeError::IoError(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("No cookies found in file: {path}"),
+        )));
+    }
+    // Replace any previously loaded custom cookies.
+    let _ = CUSTOM_COOKIES.set(jar);
+    Ok(())
+}
+
+/// Build the cookie jar used by the shared HTTP client.
+///
+/// Starts with a recommended YouTube `CONSENT` cookie (avoids consent walls),
+/// then adds any user-supplied cookies loaded via [`load_cookies_from_file`].
+/// All cookies are added with their Path/Domain/Secure attributes so reqwest
+/// sends them to the matching hosts.
+fn build_cookie_jar() -> reqwest::cookie::Jar {
     let jar = reqwest::cookie::Jar::default();
-    jar.add_cookie_str(cookie, &url);
+
+    // Recommended YouTube cookie (fallback so requests aren't blocked).
+    let mut all = CookieJar::new();
+    all.push(Cookie {
+        domain: ".youtube.com".into(),
+        include_subdomains: true,
+        path: "/".into(),
+        secure: true,
+        expiry: 0, // session cookie
+        name: "CONSENT".into(),
+        value: "YES+".into(),
+    });
+
+    if let Some(custom) = CUSTOM_COOKIES.get() {
+        all.extend(custom.iter().cloned());
+    }
+
+    all.add_to_reqwest_jar(&jar);
     jar
 }
 

@@ -167,7 +167,17 @@ fn execute_js_challenges(
         }
     }
 
-    let output = ytdlp_ejs::process_input(input, runtime_type);
+    // Evaluate the (often multi-MB, heavily nested) player JS on a dedicated
+    // thread with a large native stack. QuickJS's `set_max_stack_size` only
+    // limits its internal JS stack; the real 8MB default thread stack is what
+    // overflows during evaluation, causing `thread has overflowed its stack`.
+    let output = std::thread::Builder::new()
+        .name("ejs-runner".to_string())
+        .stack_size(128 * 1024 * 1024)
+        .spawn(move || ytdlp_ejs::process_input(input, runtime_type))
+        .map_err(|e| MusicFreeError::JsDecryptionFailed(format!("Failed to spawn EJS thread: {e}")))?
+        .join()
+        .map_err(|_| MusicFreeError::JsDecryptionFailed("EJS thread panicked".to_string()))?;
 
     #[cfg(debug_assertions)]
     match &output {

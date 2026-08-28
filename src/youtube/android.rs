@@ -6,11 +6,9 @@
 use crate::download::{download_binary_chunked, download_text};
 use crate::headers::{download_headers, with_origin, with_sec_fetch};
 use crate::error::{MusicFreeError, Result};
-use crate::youtube::core::{
-    extract_audio_formats_web, get_player_url, parse_player, select_best_audio_format,
-};
-use crate::youtube::types::{Format, YtConfig};
+use crate::youtube::core::parse_player;
 use reqwest::header::HeaderMap;
+use serde_youtube::types::{Format, YtConfig};
 
 use super::utils::ANDROID_VR_USER_AGENT;
 
@@ -34,8 +32,10 @@ pub async fn android_download(video_id: &str, ytcfg: &YtConfig, html: &str) -> R
         eprintln!("[debug] Android API: title={title:?}, formats={format_count}");
     }
 
-    let formats = extract_audio_formats_web(&player_response)?;
-    let format = select_best_audio_format(&formats)?;
+    let format = player_response
+        .streaming_data
+        .best_audio_format()
+        .ok_or(MusicFreeError::AudioNotFound)?;
 
     #[cfg(debug_assertions)]
     eprintln!(
@@ -61,19 +61,14 @@ pub async fn android_download(video_id: &str, ytcfg: &YtConfig, html: &str) -> R
 async fn resolve_android_url(format: &Format, html: &str) -> Result<String> {
     #[cfg(not(feature = "ytdlp-ejs"))]
     {
-        format
-            .url
-            .clone()
-            .or_else(|| format.signature_cipher.clone())
-            .ok_or(MusicFreeError::AudioNotFound)
+        format.candidate_url().ok_or(MusicFreeError::AudioNotFound)
     }
 
     #[cfg(feature = "ytdlp-ejs")]
     {
         if let Some(raw_url) = &format.url {
             if raw_url.contains("&n=") {
-                let player_url = get_player_url(html)
-                    .await
+                let player_url = serde_youtube::parser::player_js_url(html)
                     .ok_or(MusicFreeError::PlayerJsNotFound)?;
                 let player_js_content = download_text(&player_url, HeaderMap::new()).await?;
 
@@ -91,8 +86,7 @@ async fn resolve_android_url(format: &Format, html: &str) -> Result<String> {
         }
 
         if let Some(cipher) = &format.signature_cipher {
-            let player_url = get_player_url(html)
-                .await
+            let player_url = serde_youtube::parser::player_js_url(html)
                 .ok_or(MusicFreeError::PlayerJsNotFound)?;
             let player_js_content = download_text(&player_url, HeaderMap::new()).await?;
             return crate::youtube::ejs::solve_cipher(cipher, player_js_content);

@@ -58,9 +58,21 @@ clap = { version = "4", features = ["derive"], optional = true }
 url = "2"
 md5 = "0.8"
 abv = "0.3"
+# Shared, serde-powered YouTube parsing (types + parser + URL helpers).
+serde-youtube = { git = "https://github.com/ahaoboy/serde-youtube.git", default-features = false, features = [
+  "client",
+] }
+serde-cookie = { git = "https://github.com/ahaoboy/serde-cookie", default-features = false, features = [
+  "reqwest",
+] }
 git-version = "0.3"
 const-str = "1"
 icu_normalizer = { version = "2", optional = true }
+
+# Use the local checkout of serde-youtube (where the ytcfg parser bug was fixed)
+# instead of the git dependency, so the fix takes effect immediately.
+[patch."https://github.com/ahaoboy/serde-youtube.git"]
+serde-youtube = { path = "../serde-youtube" }
 
 [profile.release]
 debug = false

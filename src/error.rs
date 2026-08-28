@@ -41,6 +41,9 @@ pub enum MusicFreeError {
     #[error("Invalid header value: {0}")]
     HeaderError(#[from] reqwest::header::InvalidHeaderValue),
 
+    #[error("Failed to parse cookies: {0}")]
+    CookieParseError(#[from] serde_cookie::Error),
+
     #[error("Download failed: {0}")]
     DownloadFailed(String),
 

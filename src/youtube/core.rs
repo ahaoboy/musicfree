@@ -1,38 +1,41 @@
 use crate::download::{download_text, post_json};
 use crate::error::{MusicFreeError, Result};
-use crate::youtube::parse_id;
-use crate::youtube::types::{
-    ContentPlaybackContext, Format, InnertubeContext, InnertubeRequest, PlaybackContext,
-    PlayerResponse, PlaylistContent, Title, YtConfig, YtInitialData,
-};
 use crate::youtube::utils::{
-    ANDROID_VR_USER_AGENT, WEB_USER_AGENT, build_playlist_url, build_thumbnail_url,
-    build_watch_url, is_valid_playlist_id, is_valid_video_id, parse_playlist_id,
+    ANDROID_VR_USER_AGENT, WEB_USER_AGENT, is_valid_playlist_id, parse_playlist_id,
 };
+use crate::youtube::parse_id;
 use crate::{Audio, AudioFormat, Platform, Playlist};
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
+use serde_youtube::types::{
+    ContentPlaybackContext, InnertubeContext, InnertubeRequest, PlaybackContext, PlayerResponse,
+    YtConfig, YtInitialData,
+};
+use serde_youtube::url::{
+    is_valid_video_id, playlist_url as build_playlist_url, thumbnail_url as build_thumbnail_url,
+    watch_url as build_watch_url,
+};
 
-pub(crate) async fn get_player_url(html: &str) -> Option<String> {
-    let marker = r#"name="player/base""#;
-    let marker_pos = html.find(marker)?;
-    let before_marker = &html[..marker_pos];
-    let src_key = r#"src=""#;
-    let src_pos = before_marker.rfind(src_key)?;
-    let rest = &before_marker[src_pos + src_key.len()..];
-    let end_pos = rest.find('"')?;
-    let url = format!("https://www.youtube.com{}", &rest[..end_pos]);
-    Some(url)
+/// Map a `serde_youtube` parsing error into a musicfree config error.
+fn map_yt_error(e: serde_youtube::Error) -> MusicFreeError {
+    MusicFreeError::ConfigParseError(e.to_string())
 }
 
-/// Extract audio formats from player response (web client)
-pub fn extract_audio_formats_web(player_response: &PlayerResponse) -> Result<Vec<&Format>> {
-    let formats = &player_response.streaming_data.formats;
-    let adaptive_formats = &player_response.streaming_data.adaptive_formats;
-    let formats = formats
-        .iter()
-        .chain(adaptive_formats)
-        .filter(|i| i.url.is_some() || i.signature_cipher.is_some());
-    Ok(formats.collect())
+/// Extract `ytcfg` configuration from HTML (via the shared parser).
+pub fn parse_ytcfg(html: &str) -> Result<YtConfig> {
+    serde_youtube::parser::extract_ytcfg(html).map_err(map_yt_error)
+}
+
+/// Extract `ytInitialPlayerResponse` from HTML (via the shared parser).
+///
+/// Scans every embedded blob and returns the first that deserializes into a
+/// [`PlayerResponse`], skipping `null`/incompatible blocks.
+pub fn parse_player_response_from_html(html: &str) -> Result<PlayerResponse> {
+    serde_youtube::parser::extract_player_response(html).map_err(map_yt_error)
+}
+
+/// Extract `ytInitialData` from HTML (via the shared parser).
+pub fn parse_yt_initial_data(html: &str) -> Result<YtInitialData> {
+    serde_youtube::parser::extract_yt_initial_data(html).map_err(map_yt_error)
 }
 
 /// Fetch player response from YouTube Android API
@@ -110,16 +113,21 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     // Single video processing
     let video_id = &parse_id(url)?;
     let ytcfg = parse_ytcfg(&html)?;
-    let player_response = if let Ok(pr) = parse_player_response_from_html(&html) {
-        pr
-    } else {
-        parse_player(video_id, &ytcfg).await?
+    // Prefer the player response embedded in the watch page HTML. Fall back to
+    // the Android API when the embedded response is missing, or when it carries
+    // no *usable* audio format (YouTube often omits direct stream URLs on watch
+    // pages, so an otherwise-valid embedded response can still lack them).
+    let player_response = match parse_player_response_from_html(&html) {
+        Ok(pr) if pr.streaming_data.best_audio_format().is_some() => pr,
+        _ => parse_player(video_id, &ytcfg).await?,
     };
     let title = &player_response.video_details.title;
     // Only keep the single best audio format (prefer itag 140 m4a) instead of
     // listing every adaptive format as a separate entry.
-    let formats = extract_audio_formats_web(&player_response)?;
-    let best_format = select_best_audio_format(&formats)?;
+    let best_format = player_response
+        .streaming_data
+        .best_audio_format()
+        .ok_or(MusicFreeError::AudioNotFound)?;
     let audios: Vec<Audio> = [best_format]
         .into_iter()
         .map(|i| {
@@ -179,10 +187,11 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
     let requested_video_id = parse_id(url).ok();
 
     let yt_data = parse_yt_initial_data(html)?;
-    let videos = extract_playlist_videos(&yt_data)?;
-
-    // Extract playlist title from ytInitialData
-    let playlist_title = extract_playlist_title(&yt_data)?;
+    // Unify both watch-next and browse playlist layouts into one list.
+    let videos = yt_data.playlist_video_infos();
+    let playlist_title = yt_data
+        .playlist_title()
+        .unwrap_or_else(|| "YouTube Playlist".to_string());
 
     let mut audios = Vec::new();
     let mut position = None;
@@ -241,10 +250,6 @@ async fn extract_playlist_audio(url: &str, html: &str) -> Result<(Playlist, Opti
 ///
 /// Phase 2 (Web fallback): If Android fails, extract player_response from web HTML,
 ///   decrypt signatureCipher via EJS, and download with Web UA.
-/// Download audio: Android-first with Web+EJS fallback.
-///
-/// Phase 1 → `android::android_download` (Android Innertube API)
-/// Phase 2 → `web::web_download` (Web HTML + EJS decryption)
 pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
     let video_id = &parse_id(url)?;
     let page_url = build_watch_url(video_id);
@@ -262,232 +267,4 @@ pub async fn download_audio(url: &str) -> Result<Vec<u8>> {
         }
     }
     crate::youtube::web::web_download(&html).await
-}
-
-/// Select best audio format: prefer itag 140 (m4a audio-only).
-pub fn select_best_audio_format<'a>(formats: &'a [&'a Format]) -> Result<&'a Format> {
-    formats
-        .iter()
-        .find(|f| f.itag == 140)
-        .or_else(|| formats.iter().find(|f| f.mime_type.starts_with("audio/")))
-        .or_else(|| formats.first())
-        .copied()
-        .ok_or(MusicFreeError::AudioNotFound)
-}
-
-/// Extract ytcfg configuration from HTML
-pub fn parse_ytcfg(html: &str) -> Result<YtConfig> {
-    let st = "ytcfg.set({";
-    let ed = ");";
-
-    // Find start position
-    let st_index = html
-        .find(st)
-        .ok_or_else(|| MusicFreeError::ConfigParseError("ytcfg.set not found".to_string()))?
-        + st.len();
-
-    // Find end position after start
-    let remaining_html = &html[st_index..];
-    let ed_offset = remaining_html
-        .find(ed)
-        .ok_or_else(|| MusicFreeError::ConfigParseError("ytcfg end not found".to_string()))?;
-    let ed_index = st_index + ed_offset;
-
-    // Extract and construct JSON string
-    let json_content = &html[st_index..ed_index];
-    let json = format!("{{{}", json_content);
-    serde_json::from_str(&json)
-        .map_err(|e| MusicFreeError::ConfigParseError(format!("Failed to parse ytcfg JSON: {}", e)))
-}
-
-pub fn parse_player_response_from_html(html: &str) -> Result<PlayerResponse> {
-    let pattern = "var ytInitialPlayerResponse = ";
-    let mut current_pos = 0;
-
-    let mut last_error =
-        MusicFreeError::ConfigParseError("ytInitialPlayerResponse not found".to_string());
-
-    while let Some(st_offset) = html[current_pos..].find(pattern) {
-        let st_index = current_pos + st_offset + pattern.len();
-
-        if let Some(ed_offset) = html[st_index..].find("};") {
-            let ed_index = st_index + ed_offset + 1; // +1
-            let json_str = &html[st_index..ed_index];
-            // let _ = std::fs::write("yt.json", json_str);
-
-            match serde_json::from_str::<serde_json::Value>(json_str) {
-                Ok(value) if !value.is_null() => {
-                    match serde_json::from_value::<PlayerResponse>(value) {
-                        Ok(response) => {
-                            return Ok(response);
-                        }
-                        Err(e) => {
-                            last_error =
-                                MusicFreeError::ConfigParseError(format!("Schema mismatch: {}", e));
-                        }
-                    }
-                }
-                Ok(_) => {
-                    // skip null
-                }
-                Err(e) => {
-                    last_error =
-                        MusicFreeError::ConfigParseError(format!("Invalid JSON block: {}", e));
-                }
-            }
-            current_pos = ed_index;
-        } else {
-            current_pos = st_index;
-        }
-    }
-
-    Err(last_error)
-}
-
-/// Extract ytInitialData from HTML
-pub fn parse_yt_initial_data(html: &str) -> Result<YtInitialData> {
-    let st = "var ytInitialData = ";
-    let ed = "};";
-
-    // Find start position
-    let st_index = html
-        .find(st)
-        .ok_or_else(|| MusicFreeError::ConfigParseError("ytInitialData not found".to_string()))?
-        + st.len();
-
-    // Find end position after start
-    let remaining_html = &html[st_index..];
-    let ed_offset = remaining_html.find(ed).ok_or_else(|| {
-        MusicFreeError::ConfigParseError("ytInitialData end not found".to_string())
-    })? + 1; // +1 to include "}"
-    let ed_index = st_index + ed_offset;
-
-    // Extract JSON string
-    let json = &html[st_index..ed_index];
-
-    serde_json::from_str(json).map_err(|e| {
-        MusicFreeError::ConfigParseError(format!("Failed to parse ytInitialData JSON: {}", e))
-    })
-}
-
-/// Represents a video in a YouTube playlist
-#[derive(Debug, Clone)]
-pub struct PlaylistVideoInfo {
-    pub title: String,
-    pub url: String,
-    pub video_id: String,
-    pub duration: Option<u64>,
-}
-
-/// Extract playlist video information from ytInitialData
-/// Supports both twoColumnWatchNextResults and twoColumnBrowseResultsRenderer formats
-pub fn extract_playlist_videos(yt_data: &YtInitialData) -> Result<Vec<PlaylistVideoInfo>> {
-    // Try twoColumnWatchNextResults format first (used in watch page with playlist)
-    if let Some(watch_next) = &yt_data.contents.two_column_watch_next_results {
-        let videos = &watch_next.playlist.playlist.contents;
-        let mut result = Vec::new();
-
-        for content in videos {
-            if let PlaylistContent::Video(video_content) = content {
-                let renderer = &video_content.playlist_panel_video_renderer;
-
-                let title = match &renderer.title {
-                    Title::SimpleText { simple_text } => simple_text.clone(),
-                    Title::Runs { runs } => {
-                        runs.iter().map(|r| r.text.as_str()).collect::<String>()
-                    }
-                };
-
-                let url = renderer
-                    .navigation_endpoint
-                    .command_metadata
-                    .web_command_metadata
-                    .url
-                    .clone();
-                let video_id = renderer.navigation_endpoint.watch_endpoint.video_id.clone();
-
-                result.push(PlaylistVideoInfo {
-                    title,
-                    url,
-                    video_id,
-                    duration: None,
-                });
-            }
-        }
-
-        return Ok(result);
-    }
-
-    // Try twoColumnBrowseResultsRenderer format (used in playlist page)
-    if let Some(browse_results) = &yt_data.contents.two_column_browse_results_renderer {
-        // Find the selected tab and extract videos directly
-        let result = browse_results
-            .tabs
-            .iter()
-            .find(|tab| tab.tab_renderer.selected)
-            .map(|tab| {
-                tab.tab_renderer
-                    .content
-                    .section_list_renderer
-                    .contents
-                    .iter()
-                    .filter_map(|section| section.item_section_renderer.as_ref())
-                    .flat_map(|renderer| &renderer.contents)
-                    .flat_map(|item| &item.playlist_video_list_renderer.contents)
-                    .map(|video_element| {
-                        let renderer = &video_element.playlist_video_renderer;
-                        let video_id = renderer.video_id.clone();
-                        let title: String = renderer
-                            .title
-                            .runs
-                            .iter()
-                            .map(|r| r.text.as_str())
-                            .collect();
-                        let url = format!("/watch?v={}", video_id);
-                        let duration = video_element
-                            .playlist_video_renderer
-                            .length_seconds
-                            .parse()
-                            .ok();
-
-                        PlaylistVideoInfo {
-                            title,
-                            url,
-                            video_id,
-                            duration,
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        return Ok(result);
-    }
-
-    Err(MusicFreeError::ConfigParseError(
-        "No valid playlist format found in ytInitialData".to_string(),
-    ))
-}
-
-/// Extract playlist title from ytInitialData
-/// Supports both twoColumnWatchNextResults and twoColumnBrowseResultsRenderer formats
-pub fn extract_playlist_title(yt_data: &YtInitialData) -> Result<String> {
-    // Try extracting from top-level header first (for browse results)
-    if let Some(header) = &yt_data.header {
-        // Try pageHeaderRenderer
-        if let Some(page_header) = &header.page_header_renderer {
-            return Ok(page_header.page_title.clone());
-        }
-    }
-
-    // Try twoColumnWatchNextResults format
-    if let Some(watch_next) = &yt_data.contents.two_column_watch_next_results {
-        let playlist = &watch_next.playlist.playlist;
-        if let Some(title) = &playlist.title {
-            return Ok(title.to_string());
-        }
-    }
-
-    // Fallback to default title if not found
-    Ok("YouTube Playlist".to_string())
 }

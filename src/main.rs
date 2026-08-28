@@ -91,6 +91,13 @@ struct Args {
         help = "Select specific items from playlist to download (e.g., \"1,3,5\" or \"2-4\" or \"1,3-5,7\")"
     )]
     playlist_items: Option<String>,
+
+    /// Path to a Netscape-format cookies.txt file to use for requests/downloads
+    #[arg(
+        long = "cookies",
+        help = "Path to a Netscape-format cookies.txt file (yt-dlp style) to use for downloads"
+    )]
+    cookies_file: Option<String>,
 }
 
 fn parse_format(format_str: &str) -> Option<musicfree::core::AudioFormat> {
@@ -452,6 +459,16 @@ async fn download_cover(
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+
+    // Load custom cookies (if provided) before any network request is made,
+    // since the shared HTTP client is built lazily on first use.
+    if let Some(ref cookies_path) = args.cookies_file {
+        if let Err(e) = musicfree::load_cookies_from_file(cookies_path) {
+            eprintln!("Error loading cookies file '{}': {}", cookies_path, e);
+            std::process::exit(1);
+        }
+        println!("Loaded cookies from: {}", cookies_path);
+    }
 
     println!("Extracting audio from: {}", args.url);
 

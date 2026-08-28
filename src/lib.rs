@@ -13,6 +13,7 @@ pub mod youtube;
 pub use core::*;
 use error::{MusicFreeError, Result};
 pub use file::FileExtractor;
+pub use download::load_cookies_from_file;
 mod utils;
 
 #[cfg(feature = "bilibili")]

@@ -3,19 +3,14 @@ use crate::core::{Extractor, Platform};
 use crate::error::Result;
 use async_trait::async_trait;
 
-pub mod core;
-pub mod types;
-pub mod utils;
 pub mod android;
+pub mod core;
+pub mod utils;
 pub mod web;
 
-// Re-export commonly used types and functions
+// Re-export the public API used by the `Extractor` implementation.
 pub use core::*;
-pub use types::{
-    ContentPlaybackContext, Format, InnertubeContext, InnertubeRequest, PlaybackContext,
-    PlayerResponse, YtConfig,
-};
-pub use utils::{is_youtube_url, parse_id};
+pub use utils::parse_id;
 
 #[cfg(feature = "ytdlp-ejs")]
 mod ejs;
@@ -27,7 +22,7 @@ pub struct YoutubeExtractor;
 #[async_trait]
 impl Extractor for YoutubeExtractor {
     fn matches(&self, url: &str) -> bool {
-        is_youtube_url(url)
+        serde_youtube::url::is_youtube_url(url)
     }
 
     async fn extract(&self, url: &str) -> Result<(Playlist, Option<usize>)> {
