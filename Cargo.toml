@@ -69,11 +69,6 @@ git-version = "0.3"
 const-str = "1"
 icu_normalizer = { version = "2", optional = true }
 
-# Use the local checkout of serde-youtube (where the ytcfg parser bug was fixed)
-# instead of the git dependency, so the fix takes effect immediately.
-[patch."https://github.com/ahaoboy/serde-youtube.git"]
-serde-youtube = { path = "../serde-youtube" }
-
 [profile.release]
 debug = false
 lto = true
