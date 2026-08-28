@@ -116,7 +116,11 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
         parse_player(video_id, &ytcfg).await?
     };
     let title = &player_response.video_details.title;
-    let audios: Vec<Audio> = extract_audio_formats_web(&player_response)?
+    // Only keep the single best audio format (prefer itag 140 m4a) instead of
+    // listing every adaptive format as a separate entry.
+    let formats = extract_audio_formats_web(&player_response)?;
+    let best_format = select_best_audio_format(&formats)?;
+    let audios: Vec<Audio> = [best_format]
         .into_iter()
         .map(|i| {
             let mut audio = Audio::new(
@@ -126,6 +130,7 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
                 Platform::Youtube,
             )
             .with_format(AudioFormat::from_youtube(&i.mime_type))
+            .with_bitrate(i.bitrate)
             .with_cover(build_thumbnail_url(video_id));
             if let Some(ms) = i
                 .approx_duration_ms

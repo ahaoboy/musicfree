@@ -123,6 +123,9 @@ fn list_available_formats(audios: &[musicfree::core::Audio]) {
     for (index, audio) in audios.iter().enumerate() {
         println!("[{}]: {}", index + 1, audio.title);
         println!("  Format: {}", format_display_format(&audio.format));
+        if let Some(bitrate) = format_bitrate(audio.bitrate) {
+            println!("  Bitrate: {}", bitrate);
+        }
         println!("  Download URL: {}", audio.download_url);
 
         if let Some(duration) = audio.duration
@@ -149,6 +152,11 @@ fn format_display_format(format: &Option<musicfree::core::AudioFormat>) -> Strin
     format
         .as_ref()
         .map_or("Unknown".to_string(), |f| format!("{:?}", f))
+}
+
+/// Format bitrate (bits/sec) into a readable string like "128 kbps".
+fn format_bitrate(bitrate: Option<u64>) -> Option<String> {
+    bitrate.map(|b| format!("{} kbps", b / 1000))
 }
 
 /// Parse playlist items string into a set of indices
@@ -293,6 +301,9 @@ fn display_audio_info(
         println!("[{}] {}{}", index + 1, audio.title, marker);
         println!("    Platform: {:?}", audio.platform);
         println!("    Format: {}", format_display_format(&audio.format));
+        if let Some(bitrate) = format_bitrate(audio.bitrate) {
+            println!("    Bitrate: {}", bitrate);
+        }
         println!("    URL: {}", audio.download_url);
 
         if let Some(duration) = audio.duration {

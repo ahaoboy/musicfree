@@ -32,6 +32,8 @@ pub struct Format {
     #[serde(rename = "lastModified")]
     pub last_modified: String,
     pub quality: String,
+    #[serde(default)]
+    pub bitrate: u64,
     #[serde(rename = "signatureCipher")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature_cipher: Option<String>,

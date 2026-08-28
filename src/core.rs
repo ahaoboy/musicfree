@@ -80,6 +80,8 @@ pub struct Audio {
     pub duration: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<AudioFormat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bitrate: Option<u64>,
     pub platform: Platform,
 }
 
@@ -93,6 +95,7 @@ impl Audio {
             cover: None,
             duration: None,
             format: None,
+            bitrate: None,
             platform,
         }
     }
@@ -100,6 +103,12 @@ impl Audio {
     /// Set format
     pub fn with_format(mut self, format: AudioFormat) -> Self {
         self.format = Some(format);
+        self
+    }
+
+    /// Set bitrate in bits per second
+    pub fn with_bitrate(mut self, bitrate: u64) -> Self {
+        self.bitrate = if bitrate > 0 { Some(bitrate) } else { None };
         self
     }
 

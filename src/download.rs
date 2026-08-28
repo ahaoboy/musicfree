@@ -1,4 +1,3 @@
-use rand::{Rng, SeedableRng, rngs::StdRng};
 use reqwest::header::USER_AGENT;
 use reqwest::{
     Client,
@@ -269,7 +268,6 @@ pub async fn download_binary_chunked(url: &str, headers: HeaderMap) -> Result<Ve
     }
 
     // ── First request: try Range to discover if server supports it ─────────
-    let mut rng = StdRng::from_entropy();
     let first_chunk_size = CHUNK_SIZE.min(CHUNK_SIZE);
     let mut first_headers = download_headers.clone();
     first_headers.insert(
@@ -328,7 +326,7 @@ pub async fn download_binary_chunked(url: &str, headers: HeaderMap) -> Result<Ve
                     let min_chunk = ((nominal as f64) * 0.95) as usize;
                     let max_chunk = ((nominal as f64) * 1.05) as usize;
                     let chunk_len = if min_chunk < max_chunk {
-                        rng.gen_range(min_chunk..=max_chunk).min(remaining)
+                        rand::random_range(min_chunk..=max_chunk).min(remaining)
                     } else {
                         nominal
                     };
