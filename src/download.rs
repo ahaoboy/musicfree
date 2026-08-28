@@ -23,7 +23,6 @@ pub fn get_http_client() -> &'static Client {
             .tcp_keepalive(Duration::from_secs(60))
             .cookie_provider(std::sync::Arc::new(cookie_jar))
             .cookie_store(true)
-            .http1_only()
             .build()
             .expect("Failed to create HTTP client")
     })

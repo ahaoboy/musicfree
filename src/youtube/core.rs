@@ -1,8 +1,6 @@
 use crate::download::{download_text, post_json};
 use crate::error::{MusicFreeError, Result};
-use crate::youtube::utils::{
-    ANDROID_VR_USER_AGENT, WEB_USER_AGENT, is_valid_playlist_id, parse_playlist_id,
-};
+use crate::youtube::utils::{WEB_USER_AGENT, is_valid_playlist_id, parse_playlist_id};
 use crate::youtube::parse_id;
 use crate::{Audio, AudioFormat, Platform, Playlist};
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, ORIGIN, USER_AGENT};
@@ -45,15 +43,16 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
         ytcfg.innertube_api_key
     );
 
+    // Try the plain `ANDROID` client (yt-dlp uses it and marks it as not
+    // requiring a PO token for the player). It returns stream URLs that the
+    // googlevideo CDN accepts.
     let client = serde_json::json!({
-          "clientName": "ANDROID_VR",
-          "clientVersion": "1.65.10",
-          "deviceMake": "Oculus",
-          "deviceModel": "Quest 3",
-          "androidSdkVersion": 32,
-          "userAgent": ANDROID_VR_USER_AGENT,
+          "clientName": "ANDROID",
+          "clientVersion": "21.26.364",
+          "androidSdkVersion": 30,
+          "userAgent": "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
           "osName": "Android",
-          "osVersion": "12L",
+          "osVersion": "11",
     });
 
     let request_body = InnertubeRequest {
@@ -71,11 +70,16 @@ pub async fn parse_player(video_id: &str, ytcfg: &YtConfig) -> Result<PlayerResp
 
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(USER_AGENT, HeaderValue::from_str(ANDROID_VR_USER_AGENT)?);
-    headers.insert("X-YouTube-Client-Name", HeaderValue::from_static("28"));
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_str(
+            "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
+        )?,
+    );
+    headers.insert("X-YouTube-Client-Name", HeaderValue::from_static("3"));
     headers.insert(
         "X-YouTube-Client-Version",
-        HeaderValue::from_static("1.65.10"),
+        HeaderValue::from_static("21.26.364"),
     );
     headers.insert(ORIGIN, HeaderValue::from_static("https://www.youtube.com"));
 
@@ -118,15 +122,17 @@ pub async fn extract_audio(url: &str) -> Result<(Playlist, Option<usize>)> {
     // no *usable* audio format (YouTube often omits direct stream URLs on watch
     // pages, so an otherwise-valid embedded response can still lack them).
     let player_response = match parse_player_response_from_html(&html) {
-        Ok(pr) if pr.streaming_data.best_audio_format().is_some() => pr,
+        Ok(pr) if pr.streaming_data.first_downloadable().is_some() => pr,
         _ => parse_player(video_id, &ytcfg).await?,
     };
     let title = &player_response.video_details.title;
-    // Only keep the single best audio format (prefer itag 140 m4a) instead of
-    // listing every adaptive format as a separate entry.
+    // Prefer a pure audio format (itag 140 m4a), but fall back to any
+    // downloadable stream (e.g. a muxed video/audio format) when YouTube only
+    // exposes direct URLs for muxed formats.
     let best_format = player_response
         .streaming_data
         .best_audio_format()
+        .or_else(|| player_response.streaming_data.first_downloadable())
         .ok_or(MusicFreeError::AudioNotFound)?;
     let audios: Vec<Audio> = [best_format]
         .into_iter()

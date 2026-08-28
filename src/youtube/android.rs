@@ -35,6 +35,7 @@ pub async fn android_download(video_id: &str, ytcfg: &YtConfig, html: &str) -> R
     let format = player_response
         .streaming_data
         .best_audio_format()
+        .or_else(|| player_response.streaming_data.first_downloadable())
         .ok_or(MusicFreeError::AudioNotFound)?;
 
     #[cfg(debug_assertions)]
