@@ -293,3 +293,57 @@ impl Playlist {
         safe_title(self.title.as_deref().unwrap_or("Unknown"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_cover_file_name() {
+        let name = cover_file_name("https://example.com/cover art.jpg");
+        assert!(name.ends_with("_cover art.jpg"));
+        assert_eq!(name.len(), 32 + 1 + "cover art.jpg".len());
+    }
+
+    #[cfg(feature = "file")]
+    #[test]
+    fn builds_track_file_names() {
+        let track = Track::new("id", "A / B", "https://example.com/a.mp3", Site::File)
+            .with_format(AudioFormat::Mp4);
+
+        assert_eq!(track.file_name(), "A  B.mp4");
+        assert!(track.cache_file_name().starts_with("id_"));
+        assert!(track.cache_file_name().ends_with(".mp4"));
+        assert!(track.save_file_name().starts_with("A  B-"));
+        assert!(track.save_file_name().ends_with(".mp4"));
+    }
+
+    #[cfg(feature = "file")]
+    #[test]
+    fn uses_frontend_serde_names() {
+        let track = Track::new("id", "Song", "https://example.com/a.mp3", Site::File)
+            .with_format(AudioFormat::Mp4);
+        let playlist = Playlist {
+            url: Some("https://example.com/playlist".into()),
+            tracks: vec![track.clone()],
+            site: Site::File,
+            ..Playlist::new(Site::File)
+        };
+
+        let track_json = serde_json::to_value(&track).unwrap();
+        assert_eq!(track_json["download_url"], "https://example.com/a.mp3");
+        assert_eq!(track_json["platform"], "File");
+        assert_eq!(track_json["format"], "Mp4");
+
+        let playlist_json = serde_json::to_value(&playlist).unwrap();
+        assert_eq!(
+            playlist_json["download_url"],
+            "https://example.com/playlist"
+        );
+        assert_eq!(playlist_json["platform"], "File");
+        assert_eq!(playlist_json["audios"][0]["id"], "id");
+
+        let parsed: Playlist = serde_json::from_value(playlist_json).unwrap();
+        assert_eq!(parsed.tracks[0].url, "https://example.com/a.mp3");
+    }
+}

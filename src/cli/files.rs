@@ -1,7 +1,7 @@
 use super::YoutubeMode;
 #[cfg(feature = "youtube")]
 use crate::{Site, sites::youtube};
-use crate::{Track, sites};
+use crate::{Track, safe_title, sites};
 use anyhow::{Context, Result};
 use std::{
     fs,
@@ -72,28 +72,24 @@ fn directory(dir: Option<&Path>) -> &Path {
 
 fn audio_name(track: &Track, output: Option<&Path>) -> PathBuf {
     match output.and_then(Path::file_stem) {
-        Some(stem) => {
-            let mut path = PathBuf::from(sanitize(&stem.to_string_lossy()));
-            path.set_extension(track.extension());
-            path
-        }
+        Some(stem) => PathBuf::from(format!(
+            "{}.{}",
+            safe_title(&stem.to_string_lossy()),
+            track.extension()
+        )),
         None => PathBuf::from(track.file_name()),
     }
 }
 
 fn cover_name(track: &Track, output: Option<&Path>) -> PathBuf {
     match output.and_then(Path::file_stem) {
-        Some(stem) => PathBuf::from(format!("{}.jpg", sanitize(&stem.to_string_lossy()))),
+        Some(stem) => PathBuf::from(format!("{}.jpg", safe_title(&stem.to_string_lossy()))),
         None => PathBuf::from(
             track
                 .cover_file_name()
                 .unwrap_or_else(|| "cover.jpg".into()),
         ),
     }
-}
-
-fn sanitize(value: &str) -> String {
-    sanitize_filename::sanitize(value)
 }
 
 fn write(path: &Path, data: Vec<u8>) -> Result<()> {
