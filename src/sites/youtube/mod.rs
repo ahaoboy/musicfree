@@ -1,12 +1,16 @@
 pub mod api;
 mod download;
 mod ejs;
+mod formats;
 mod mobile;
 mod playlist;
 pub mod url;
 mod web;
 
-use crate::{AudioFormat, Playlist, Result, Site, Track, http, sites::Extractor};
+use crate::{
+    AudioFormat, MediaFormat, Playlist, Result, Site, Track, http, http::HeaderMapExt,
+    sites::Extractor,
+};
 use async_trait::async_trait;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 
@@ -34,6 +38,14 @@ impl Extractor for Youtube {
         extract_playlist(url).await
     }
 
+    async fn formats(&self, url: &str) -> Result<Vec<MediaFormat>> {
+        formats::list(url).await
+    }
+
+    async fn download_format(&self, url: &str, format_id: &str) -> Result<Vec<u8>> {
+        download_format(url, Mode::Auto, format_id).await
+    }
+
     async fn download(&self, url: &str) -> Result<Vec<u8>> {
         download(url, Mode::Auto).await
     }
@@ -54,6 +66,17 @@ pub async fn download(input: &str, mode: Mode) -> Result<Vec<u8>> {
             Err(_) => web::download(&video_id, &html, &config, sts).await,
         },
     }
+}
+
+/// Download a specific YouTube format with an explicit strategy.
+pub async fn download_format(input: &str, mode: Mode, format_id: &str) -> Result<Vec<u8>> {
+    let (format, user_agent, html) = formats::find_format(input, format_id, mode).await?;
+    let media_url = download::resolve_url(&format, &html, None).await?;
+    let headers = http::media_headers(user_agent, "https://www.youtube.com/")?
+        .with_origin("https://www.youtube.com")
+        .with_sec_fetch();
+
+    http::download(&media_url, headers).await
 }
 
 async fn extract_playlist(input: &str) -> Result<Playlist> {
@@ -145,7 +168,7 @@ fn parse_playlist(input: &str, playlist_id: &str, html: &str) -> Result<Playlist
     })
 }
 
-async fn fetch_page(video_id: &str) -> Result<String> {
+pub(super) async fn fetch_page(video_id: &str) -> Result<String> {
     http::get_text(&url::watch_url(video_id), page_headers()).await
 }
 

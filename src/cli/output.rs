@@ -1,4 +1,4 @@
-use crate::{Playlist, Track};
+use crate::{MediaFormat, Playlist, Track};
 
 pub fn playlist(playlist: &Playlist) {
     if playlist.tracks.len() > 1 {
@@ -37,16 +37,57 @@ pub fn playlist(playlist: &Playlist) {
     }
 }
 
-pub fn formats(playlist: &Playlist) {
-    println!("Available audio formats:");
-    println!();
-    if playlist.tracks.is_empty() {
-        println!("No audio files found.");
+pub fn media_formats(formats: &[MediaFormat]) {
+    if formats.is_empty() {
+        println!("No downloadable formats found.");
         return;
     }
-    for (index, track) in playlist.tracks.iter().enumerate() {
-        print_track(index, track, playlist.default == Some(index));
+    for (index, format) in formats.iter().enumerate() {
+        print_media_format(index, format);
     }
+}
+
+pub fn selected_format(format: &MediaFormat) {
+    println!("Selected format:");
+    print_media_format(0, format);
+}
+
+fn print_media_format(index: usize, format: &MediaFormat) {
+    let quality = format
+        .quality
+        .as_deref()
+        .map(|quality| format!(" {quality}"))
+        .unwrap_or_default();
+    println!(
+        "[{}] {} {}{}",
+        index + 1,
+        format.kind,
+        format.format,
+        quality
+    );
+    println!("    ID: {}", format.id);
+    println!("    MIME: {}", format.mime_type);
+    if let Some(codec) = &format.codec {
+        println!("    Codec: {codec}");
+    }
+    if let Some(bitrate) = format.bitrate {
+        println!("    Bitrate: {} kbps", bitrate / 1000);
+    }
+    if let Some(resolution) = format.resolution() {
+        println!("    Resolution: {resolution}");
+    }
+    if let Some(size) = format.size_or_estimate() {
+        let estimated = if format.size.is_some() {
+            ""
+        } else {
+            " (estimated)"
+        };
+        println!("    Size: {}{estimated}", format_size(size));
+    }
+    if let Some(duration) = format.duration {
+        println!("    Duration: {}", format_duration(duration));
+    }
+    println!();
 }
 
 fn print_track(index: usize, track: &Track, default: bool) {
@@ -65,6 +106,21 @@ fn print_track(index: usize, track: &Track, default: bool) {
         println!("    Cover: {cover}");
     }
     println!();
+}
+
+fn format_size(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KiB", "MiB", "GiB"];
+    let mut size = bytes as f64;
+    let mut unit = 0;
+    while size >= 1024.0 && unit < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} {}", UNITS[unit])
+    } else {
+        format!("{size:.2} {}", UNITS[unit])
+    }
 }
 
 fn format_duration(seconds: u64) -> String {

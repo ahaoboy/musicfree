@@ -119,6 +119,108 @@ impl fmt::Display for AudioFormat {
     }
 }
 
+/// What tracks a downloadable media format contains.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaKind {
+    /// Video with an audio track.
+    Muxed,
+    /// Video only.
+    Video,
+    /// Audio only.
+    Audio,
+}
+
+impl fmt::Display for MediaKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Muxed => "video+audio",
+            Self::Video => "video",
+            Self::Audio => "audio",
+        })
+    }
+}
+
+/// One selectable media stream returned by `formats()`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MediaFormat {
+    /// Site-specific format identifier, e.g. YouTube `itag` or a Bilibili
+    /// quality id.
+    pub id: String,
+    pub kind: MediaKind,
+    pub format: AudioFormat,
+    pub mime_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codec: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bitrate: Option<u64>,
+    /// Exact size when the site reports it, otherwise an estimate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<u64>,
+}
+
+/// Pick the highest-quality format that contains video.
+pub fn best_video(formats: &[MediaFormat]) -> Option<&MediaFormat> {
+    formats
+        .iter()
+        .filter(|format| format.has_video())
+        .max_by_key(|format| {
+            (
+                format.height.unwrap_or(0),
+                format.bitrate.unwrap_or(0),
+                format.kind == MediaKind::Muxed,
+            )
+        })
+}
+
+/// Sort formats for display: muxed, video, then audio, highest quality first.
+pub fn sort_formats(formats: &mut [MediaFormat]) {
+    formats.sort_by(|left, right| {
+        kind_rank(left.kind)
+            .cmp(&kind_rank(right.kind))
+            .then_with(|| right.height.unwrap_or(0).cmp(&left.height.unwrap_or(0)))
+            .then_with(|| right.bitrate.unwrap_or(0).cmp(&left.bitrate.unwrap_or(0)))
+    });
+}
+
+fn kind_rank(kind: MediaKind) -> u8 {
+    match kind {
+        MediaKind::Muxed => 0,
+        MediaKind::Video => 1,
+        MediaKind::Audio => 2,
+    }
+}
+
+impl MediaFormat {
+    pub fn has_audio(&self) -> bool {
+        matches!(self.kind, MediaKind::Audio | MediaKind::Muxed)
+    }
+
+    pub fn has_video(&self) -> bool {
+        matches!(self.kind, MediaKind::Video | MediaKind::Muxed)
+    }
+
+    pub fn resolution(&self) -> Option<String> {
+        Some(format!("{}x{}", self.width?, self.height?))
+    }
+
+    pub fn size_or_estimate(&self) -> Option<u64> {
+        self.size.or_else(|| {
+            let bitrate = self.bitrate?;
+            let duration = self.duration?;
+            Some(bitrate.saturating_mul(duration) / 8)
+        })
+    }
+}
+
 /// A single downloadable audio resource.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Track {
@@ -305,6 +407,29 @@ mod tests {
         assert!(name.ends_with("_cover art.jpg"));
         assert_eq!(name.len(), 32 + 1 + "cover art.jpg".len());
         assert!(cover_file_name("https://example.com/cover.jpg?x=1").ends_with("_cover.jpg"));
+    }
+
+    #[test]
+    fn picks_best_video_format() {
+        let format = |id: &str, kind: MediaKind, height, bitrate| MediaFormat {
+            id: id.into(),
+            kind,
+            format: AudioFormat::Mp4,
+            mime_type: "video/mp4".into(),
+            codec: None,
+            bitrate: Some(bitrate),
+            size: None,
+            width: None,
+            height: Some(height),
+            quality: None,
+            duration: Some(60),
+        };
+        let formats = vec![
+            format("audio", MediaKind::Audio, 0, 999_999),
+            format("720", MediaKind::Video, 720, 1_000_000),
+            format("1080", MediaKind::Video, 1080, 2_000_000),
+        ];
+        assert_eq!(best_video(&formats).unwrap().id, "1080");
     }
 
     #[cfg(feature = "file")]

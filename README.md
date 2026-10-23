@@ -21,8 +21,14 @@ musicfree "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 # Show metadata only
 musicfree -i "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 
-# List available tracks/formats
+# List every downloadable format, including size, bitrate and resolution
 musicfree -F "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
+
+# Download a specific format shown by -F
+musicfree -f 137 "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
+
+# Download the best video format (may be video-only)
+musicfree --video "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
 
 # Choose an output directory / filename
 musicfree -d ./music -o song "https://www.youtube.com/watch?v=BnnbP7pCIvQ"
@@ -36,6 +42,10 @@ musicfree -d ./music -I 1,3-5 "https://www.youtube.com/playlist?list=..."
 # Use a Netscape-format cookies.txt file
 musicfree --cookies cookies.txt "https://www.bilibili.com/video/BV..."
 ```
+
+`--video` selects the highest-resolution video stream. Adaptive video streams are
+often video-only; use `-F` to find a muxed `video+audio` format and pass its ID with
+`-f/--format` when audio is required.
 
 ### YouTube strategies
 

@@ -44,25 +44,15 @@ pub async fn android_player(
     config: &YtConfig,
     sts: Option<u64>,
 ) -> Result<PlayerResponse> {
-    player(
-        video_id,
-        config,
-        Client {
-            id: ANDROID_CLIENT_ID,
-            version: url::ANDROID_VERSION,
-            ua: url::ANDROID_UA,
-            context: json!({
-                "clientName": "ANDROID",
-                "clientVersion": url::ANDROID_VERSION,
-                "androidSdkVersion": 30,
-                "userAgent": url::ANDROID_UA,
-                "osName": "Android",
-                "osVersion": "11",
-            }),
-        },
-        sts,
-    )
-    .await
+    player(video_id, config, android_client(), sts).await
+}
+
+pub async fn android_player_json(
+    video_id: &str,
+    config: &YtConfig,
+    sts: Option<u64>,
+) -> Result<Value> {
+    player_request(video_id, config, android_client(), sts).await
 }
 
 pub async fn web_player(
@@ -70,23 +60,7 @@ pub async fn web_player(
     config: &YtConfig,
     sts: Option<u64>,
 ) -> Result<PlayerResponse> {
-    let mut context = config.innertube_context.client.clone();
-    if let Some(client) = context.as_object_mut() {
-        client.entry("hl").or_insert_with(|| json!("en"));
-        client.entry("gl").or_insert_with(|| json!("US"));
-    }
-    player(
-        video_id,
-        config,
-        Client {
-            id: WEB_CLIENT_ID,
-            version: &config.innertube_client_version,
-            ua: url::WEB_UA,
-            context,
-        },
-        sts,
-    )
-    .await
+    player(video_id, config, web_client(config), sts).await
 }
 
 pub async fn mweb_player(
@@ -94,26 +68,7 @@ pub async fn mweb_player(
     config: &YtConfig,
     sts: Option<u64>,
 ) -> Result<PlayerResponse> {
-    player(
-        video_id,
-        config,
-        Client {
-            id: MWEB_CLIENT_ID,
-            version: url::MWEB_VERSION,
-            ua: url::MWEB_UA,
-            context: json!({
-                "clientName": "MWEB",
-                "clientVersion": url::MWEB_VERSION,
-                "userAgent": url::MWEB_UA,
-                "osName": "iPad",
-                "osVersion": "16.7.10",
-                "hl": "en",
-                "gl": "US",
-            }),
-        },
-        sts,
-    )
-    .await
+    player(video_id, config, mweb_client(), sts).await
 }
 
 pub async fn visionos_player(
@@ -121,28 +76,81 @@ pub async fn visionos_player(
     config: &YtConfig,
     sts: Option<u64>,
 ) -> Result<PlayerResponse> {
-    player(
-        video_id,
-        config,
-        Client {
-            id: VISIONOS_CLIENT_ID,
-            version: url::VISIONOS_VERSION,
-            ua: url::VISIONOS_UA,
-            context: json!({
-                "clientName": "VISIONOS",
-                "clientVersion": url::VISIONOS_VERSION,
-                "deviceMake": "Apple",
-                "deviceModel": "RealityDevice17,1",
-                "userAgent": url::VISIONOS_UA,
-                "osName": "visionOS",
-                "osVersion": "26.5.23O471",
-                "hl": "en",
-                "gl": "US",
-            }),
-        },
-        sts,
-    )
-    .await
+    player(video_id, config, visionos_client(), sts).await
+}
+
+pub async fn visionos_player_json(
+    video_id: &str,
+    config: &YtConfig,
+    sts: Option<u64>,
+) -> Result<Value> {
+    player_request(video_id, config, visionos_client(), sts).await
+}
+
+fn android_client() -> Client<'static> {
+    Client {
+        id: ANDROID_CLIENT_ID,
+        version: url::ANDROID_VERSION,
+        ua: url::ANDROID_UA,
+        context: json!({
+            "clientName": "ANDROID",
+            "clientVersion": url::ANDROID_VERSION,
+            "androidSdkVersion": 30,
+            "userAgent": url::ANDROID_UA,
+            "osName": "Android",
+            "osVersion": "11",
+        }),
+    }
+}
+
+fn web_client(config: &YtConfig) -> Client<'_> {
+    let mut context = config.innertube_context.client.clone();
+    if let Some(client) = context.as_object_mut() {
+        client.entry("hl").or_insert_with(|| json!("en"));
+        client.entry("gl").or_insert_with(|| json!("US"));
+    }
+    Client {
+        id: WEB_CLIENT_ID,
+        version: &config.innertube_client_version,
+        ua: url::WEB_UA,
+        context,
+    }
+}
+
+fn mweb_client() -> Client<'static> {
+    Client {
+        id: MWEB_CLIENT_ID,
+        version: url::MWEB_VERSION,
+        ua: url::MWEB_UA,
+        context: json!({
+            "clientName": "MWEB",
+            "clientVersion": url::MWEB_VERSION,
+            "userAgent": url::MWEB_UA,
+            "osName": "iPad",
+            "osVersion": "16.7.10",
+            "hl": "en",
+            "gl": "US",
+        }),
+    }
+}
+
+fn visionos_client() -> Client<'static> {
+    Client {
+        id: VISIONOS_CLIENT_ID,
+        version: url::VISIONOS_VERSION,
+        ua: url::VISIONOS_UA,
+        context: json!({
+            "clientName": "VISIONOS",
+            "clientVersion": url::VISIONOS_VERSION,
+            "deviceMake": "Apple",
+            "deviceModel": "RealityDevice17,1",
+            "userAgent": url::VISIONOS_UA,
+            "osName": "visionOS",
+            "osVersion": "26.5.23O471",
+            "hl": "en",
+            "gl": "US",
+        }),
+    }
 }
 
 struct Client<'a> {
@@ -158,6 +166,16 @@ async fn player(
     client: Client<'_>,
     sts: Option<u64>,
 ) -> Result<PlayerResponse> {
+    let value = player_request(video_id, config, client, sts).await?;
+    serde_json::from_value(value).map_err(Error::from)
+}
+
+async fn player_request(
+    video_id: &str,
+    config: &YtConfig,
+    client: Client<'_>,
+    sts: Option<u64>,
+) -> Result<Value> {
     let url = format!(
         "https://www.youtube.com/youtubei/v1/player?key={}&prettyPrint=false",
         config.innertube_api_key

@@ -120,17 +120,49 @@ pub struct PlayData {
 pub struct Dash {
     #[serde(default)]
     pub audio: Vec<AudioStream>,
+    #[serde(default)]
+    pub video: Vec<VideoStream>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AudioStream {
     #[serde(default)]
+    pub id: Option<u64>,
+    #[serde(default)]
     pub bandwidth: u64,
     #[serde(rename = "baseUrl")]
     pub base_url: String,
+    #[serde(default, rename = "mimeType")]
+    pub mime_type: String,
+    #[serde(default)]
+    pub codecs: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct VideoStream {
+    #[serde(default)]
+    pub id: Option<u64>,
+    #[serde(default)]
+    pub bandwidth: u64,
+    #[serde(rename = "baseUrl")]
+    pub base_url: String,
+    #[serde(default, rename = "mimeType")]
+    pub mime_type: String,
+    #[serde(default)]
+    pub codecs: String,
+    #[serde(default)]
+    pub width: u32,
+    #[serde(default)]
+    pub height: u32,
+    #[serde(default)]
+    pub codecid: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Durl {
     pub url: String,
+    #[serde(default)]
+    pub size: Option<u64>,
+    #[serde(default)]
+    pub length: Option<u64>,
 }

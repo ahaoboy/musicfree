@@ -1,4 +1,7 @@
-use crate::{AudioFormat, Error, Playlist, Result, Site, Track, http, sites::Extractor};
+use crate::{
+    AudioFormat, Error, MediaFormat, MediaKind, Playlist, Result, Site, Track, http,
+    sites::Extractor,
+};
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
 use std::path::Path;
@@ -26,6 +29,27 @@ impl Extractor for File {
             default: Some(0),
             ..Playlist::new(Site::File)
         })
+    }
+
+    async fn formats(&self, url: &str) -> Result<Vec<MediaFormat>> {
+        let parsed = Url::parse(url).map_err(|error| Error::InvalidUrl(error.to_string()))?;
+        let format = format_of(&parsed).ok_or_else(|| Error::Unsupported(url.to_owned()))?;
+        Ok(vec![MediaFormat {
+            id: "file".into(),
+            kind: match format {
+                AudioFormat::Mp4 | AudioFormat::Webm => MediaKind::Muxed,
+                _ => MediaKind::Audio,
+            },
+            format,
+            mime_type: format.as_str().into(),
+            codec: None,
+            bitrate: None,
+            size: None,
+            width: None,
+            height: None,
+            quality: None,
+            duration: None,
+        }])
     }
 
     async fn download(&self, url: &str) -> Result<Vec<u8>> {

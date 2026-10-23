@@ -5,7 +5,7 @@ pub mod file;
 #[cfg(feature = "youtube")]
 pub mod youtube;
 
-use crate::{Error, Playlist, Result, Site, Track};
+use crate::{Error, MediaFormat, Playlist, Result, Site, Track};
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
 use std::time::Duration;
@@ -23,6 +23,14 @@ pub trait Extractor: Send + Sync {
     fn matches(&self, url: &str) -> bool;
 
     async fn extract(&self, url: &str) -> Result<Playlist>;
+
+    async fn formats(&self, url: &str) -> Result<Vec<MediaFormat>> {
+        Err(Error::Unsupported(format!("format listing for {url}")))
+    }
+
+    async fn download_format(&self, url: &str, _format_id: &str) -> Result<Vec<u8>> {
+        self.download(url).await
+    }
 
     async fn download(&self, url: &str) -> Result<Vec<u8>> {
         crate::http::download(url, HeaderMap::new()).await
@@ -64,6 +72,21 @@ pub async fn extract(url: &str) -> Result<Playlist> {
     Err(Error::Unsupported(url.to_owned()))
 }
 
+/// List downloadable formats for a URL.
+pub async fn formats(url: &str) -> Result<Vec<MediaFormat>> {
+    for extractor in EXTRACTORS {
+        if extractor.matches(url) {
+            return extractor.formats(url).await;
+        }
+    }
+    Err(Error::Unsupported(url.to_owned()))
+}
+
+/// Download a specific format through the matching site extractor.
+pub async fn download_format(site: Site, url: &str, format_id: &str) -> Result<Vec<u8>> {
+    extractor(site).download_format(url, format_id).await
+}
+
 /// Download a media URL through the matching site extractor.
 pub async fn download(site: Site, url: &str) -> Result<Vec<u8>> {
     extractor(site).download(url).await
@@ -75,9 +98,19 @@ pub async fn download_cover(site: Site, url: &str) -> Result<Vec<u8>> {
 }
 
 impl Track {
+    /// List this track's downloadable formats.
+    pub async fn formats(&self) -> Result<Vec<MediaFormat>> {
+        extractor(self.site).formats(&self.url).await
+    }
+
     /// Download this track's media using its site extractor.
     pub async fn download(&self) -> Result<Vec<u8>> {
         download(self.site, &self.url).await
+    }
+
+    /// Download a specific format of this track.
+    pub async fn download_format(&self, format_id: &str) -> Result<Vec<u8>> {
+        download_format(self.site, &self.url, format_id).await
     }
 
     /// Download this track's cover, if it has one.

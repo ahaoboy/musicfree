@@ -1,7 +1,7 @@
 use super::YoutubeMode;
+use crate::{AudioFormat, MediaFormat, Track, safe_title};
 #[cfg(feature = "youtube")]
 use crate::{Site, sites::youtube};
-use crate::{Track, safe_title, sites};
 use anyhow::{Context, Result};
 use std::{
     fs,
@@ -13,8 +13,17 @@ pub async fn download(
     dir: Option<&Path>,
     output: Option<&Path>,
     mode: YoutubeMode,
+    selected: Option<&MediaFormat>,
 ) -> Result<()> {
-    let path = directory(dir).join(audio_name(track, output));
+    let format = selected
+        .map(|format| format.format)
+        .unwrap_or_else(|| track.format.unwrap_or(AudioFormat::Mp3));
+    let path = directory(dir).join(audio_name(
+        track,
+        output,
+        format,
+        selected.map(|format| format.id.as_str()),
+    ));
     if path.exists() {
         println!("⏭ File already exists, skipping: {}", path.display());
         return Ok(());
@@ -24,18 +33,26 @@ pub async fn download(
     let _ = mode;
 
     #[cfg(feature = "youtube")]
-    let data = if matches!(track.site, Site::Youtube) {
+    let data = if let Some(format) = selected {
+        if matches!(track.site, Site::Youtube) {
+            youtube::download_format(&track.url, mode.into(), &format.id).await
+        } else {
+            track.download_format(&format.id).await
+        }
+    } else if matches!(track.site, Site::Youtube) {
         youtube::download(&track.url, mode.into()).await
     } else {
-        sites::extractor(track.site).download(&track.url).await
+        track.download().await
     }
     .with_context(|| format!("download {}", track.title))?;
 
     #[cfg(not(feature = "youtube"))]
-    let data = sites::extractor(track.site)
-        .download(&track.url)
-        .await
-        .with_context(|| format!("download {}", track.title))?;
+    let data = if let Some(format) = selected {
+        track.download_format(&format.id).await
+    } else {
+        track.download().await
+    }
+    .with_context(|| format!("download {}", track.title))?;
 
     write(&path, data)?;
     println!("✓ Saved to: {}", path.display());
@@ -57,8 +74,7 @@ pub async fn download_cover(
         return Ok(());
     }
 
-    let data = sites::extractor(track.site)
-        .download_cover(cover)
+    let data = crate::download_cover(track.site, cover)
         .await
         .with_context(|| format!("download cover for {}", track.title))?;
     write(&path, data)?;
@@ -70,14 +86,28 @@ fn directory(dir: Option<&Path>) -> &Path {
     dir.unwrap_or_else(|| Path::new("."))
 }
 
-fn audio_name(track: &Track, output: Option<&Path>) -> PathBuf {
+fn audio_name(
+    track: &Track,
+    output: Option<&Path>,
+    format: AudioFormat,
+    selected_id: Option<&str>,
+) -> PathBuf {
     match output.and_then(Path::file_stem) {
         Some(stem) => PathBuf::from(format!(
             "{}.{}",
             safe_title(&stem.to_string_lossy()),
-            track.extension()
+            format.extension()
         )),
-        None => PathBuf::from(track.file_name()),
+        None => {
+            let title = safe_title(&track.title);
+            let stem = match selected_id {
+                Some(id) => format!("{title} [{}]", safe_title(id)),
+                None => title,
+            };
+            let mut name = PathBuf::from(stem);
+            name.set_extension(format.extension());
+            name
+        }
     }
 }
 
