@@ -13,8 +13,8 @@ default = ["cli", "sites"]
 sites = ["bilibili", "youtube", "file"]
 bilibili = ["dep:abv", "dep:url"]
 youtube = ["dep:regex", "dep:serde-youtube", "dep:url", "dep:ytdlp-ejs"]
-file = ["dep:md5", "dep:url", "dep:urlencoding"]
-cli = ["dep:anyhow", "dep:clap", "dep:sanitize-filename"]
+file = ["dep:url", "dep:urlencoding"]
+cli = ["dep:anyhow", "dep:clap"]
 bindgen = ["dep:ytdlp-ejs", "ytdlp-ejs/bindgen"]
 
 [dependencies]
@@ -39,11 +39,11 @@ thiserror = "2"
 regex = { version = "1", optional = true }
 url = { version = "2", optional = true }
 urlencoding = { version = "2", optional = true }
-md5 = { version = "0.8", optional = true }
+md5 = "0.8"
 abv = { version = "0.3", optional = true }
 anyhow = { version = "1", optional = true }
 async-trait = "0.1"
-sanitize-filename = { version = "0.6", optional = true }
+sanitize-filename = "0.6"
 clap = { version = "4", features = ["derive"], optional = true }
 serde-youtube = { git = "https://github.com/ahaoboy/serde-youtube.git", default-features = false, optional = true }
 serde-cookie = { git = "https://github.com/ahaoboy/serde-cookie", default-features = false, features = [

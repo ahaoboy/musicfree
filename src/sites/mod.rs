@@ -5,9 +5,10 @@ pub mod file;
 #[cfg(feature = "youtube")]
 pub mod youtube;
 
-use crate::{Error, Playlist, Result, Site};
+use crate::{Error, Playlist, Result, Site, Track};
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
+use std::time::Duration;
 
 #[cfg(feature = "bilibili")]
 pub use bilibili::Bilibili;
@@ -61,4 +62,45 @@ pub async fn extract(url: &str) -> Result<Playlist> {
         }
     }
     Err(Error::Unsupported(url.to_owned()))
+}
+
+/// Download a media URL through the matching site extractor.
+pub async fn download(site: Site, url: &str) -> Result<Vec<u8>> {
+    extractor(site).download(url).await
+}
+
+/// Download a cover URL through the matching site extractor.
+pub async fn download_cover(site: Site, url: &str) -> Result<Vec<u8>> {
+    extractor(site).download_cover(url).await
+}
+
+impl Track {
+    /// Download this track's media using its site extractor.
+    pub async fn download(&self) -> Result<Vec<u8>> {
+        download(self.site, &self.url).await
+    }
+
+    /// Download this track's cover, if it has one.
+    pub async fn download_cover(&self) -> Result<Option<Vec<u8>>> {
+        let Some(url) = &self.cover else {
+            return Ok(None);
+        };
+        download_cover(self.site, url).await.map(Some)
+    }
+
+    pub async fn download_with_timeout(&self, timeout: Duration) -> Result<Vec<u8>> {
+        match tokio::time::timeout(timeout, self.download()).await {
+            Ok(result) => result,
+            Err(_) => Err(Error::Timeout(self.url.clone())),
+        }
+    }
+
+    pub async fn download_cover_with_timeout(&self, timeout: Duration) -> Result<Option<Vec<u8>>> {
+        match tokio::time::timeout(timeout, self.download_cover()).await {
+            Ok(result) => result,
+            Err(_) => Err(Error::Timeout(
+                self.cover.clone().unwrap_or_else(|| self.url.clone()),
+            )),
+        }
+    }
 }

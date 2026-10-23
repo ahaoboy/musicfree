@@ -71,37 +71,25 @@ fn directory(dir: Option<&Path>) -> &Path {
 }
 
 fn audio_name(track: &Track, output: Option<&Path>) -> PathBuf {
-    let mut path = PathBuf::from(stem(track, output));
-    path.set_extension(track.extension());
-    path
+    match output.and_then(Path::file_stem) {
+        Some(stem) => {
+            let mut path = PathBuf::from(sanitize(&stem.to_string_lossy()));
+            path.set_extension(track.extension());
+            path
+        }
+        None => PathBuf::from(track.file_name()),
+    }
 }
 
 fn cover_name(track: &Track, output: Option<&Path>) -> PathBuf {
-    let stem = match output.and_then(Path::file_stem) {
-        Some(stem) => sanitize(&stem.to_string_lossy()),
-        None => sanitize(&format!("{}_{}", track.title, track.id)),
-    };
-    let stem = if stem.is_empty() {
-        "cover".into()
-    } else {
-        stem
-    };
-    PathBuf::from(format!("{stem}.jpg"))
-}
-
-fn stem(track: &Track, output: Option<&Path>) -> String {
-    output
-        .and_then(Path::file_stem)
-        .map(|stem| sanitize(&stem.to_string_lossy()))
-        .filter(|stem| !stem.is_empty())
-        .unwrap_or_else(|| {
-            let title = sanitize(&track.title);
-            if title.is_empty() {
-                "audio".into()
-            } else {
-                title
-            }
-        })
+    match output.and_then(Path::file_stem) {
+        Some(stem) => PathBuf::from(format!("{}.jpg", sanitize(&stem.to_string_lossy()))),
+        None => PathBuf::from(
+            track
+                .cover_file_name()
+                .unwrap_or_else(|| "cover.jpg".into()),
+        ),
+    }
 }
 
 fn sanitize(value: &str) -> String {

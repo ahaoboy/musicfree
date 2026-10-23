@@ -10,8 +10,8 @@ pub mod cli;
 
 pub use error::{Error, Result};
 pub use http::load_cookies_from_file;
-pub use model::{AudioFormat, Playlist, Site, Track};
-pub use sites::{Extractor, extract, extractor};
+pub use model::{AudioFormat, Playlist, Site, Track, cover_file_name, safe_title};
+pub use sites::{Extractor, download, download_cover, extract, extractor};
 
 #[cfg(feature = "bilibili")]
 pub use sites::bilibili::Bilibili;
