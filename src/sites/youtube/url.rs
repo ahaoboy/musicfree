@@ -42,7 +42,9 @@ pub fn playlist_url(playlist_id: &str) -> String {
 }
 
 pub fn thumbnail_url(video_id: &str) -> String {
-    serde_youtube::url::thumbnail_url(video_id)
+    // `hq720`/`maxresdefault` are not generated for every video, while
+    // `hqdefault` is always available.
+    format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg")
 }
 
 fn valid_playlist_id(id: &str) -> bool {
@@ -72,5 +74,13 @@ mod tests {
     fn accepts_known_playlist_prefixes() {
         assert_eq!(playlist_id("PL123").as_deref(), Some("PL123"));
         assert!(playlist_id("RD123").is_none());
+    }
+
+    #[test]
+    fn uses_reliable_thumbnail_url() {
+        assert_eq!(
+            thumbnail_url("ISrR4bMvUAM"),
+            "https://i.ytimg.com/vi/ISrR4bMvUAM/hqdefault.jpg"
+        );
     }
 }
