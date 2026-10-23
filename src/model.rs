@@ -219,7 +219,8 @@ impl Track {
 /// Stable file name for a remote cover URL.
 pub fn cover_file_name(cover_url: &str) -> String {
     let hash = hash(cover_url);
-    let name = cover_url
+    let path = cover_url.split(['?', '#']).next().unwrap_or(cover_url);
+    let name = path
         .rsplit('/')
         .next()
         .filter(|name| !name.is_empty())
@@ -303,6 +304,7 @@ mod tests {
         let name = cover_file_name("https://example.com/cover art.jpg");
         assert!(name.ends_with("_cover art.jpg"));
         assert_eq!(name.len(), 32 + 1 + "cover art.jpg".len());
+        assert!(cover_file_name("https://example.com/cover.jpg?x=1").ends_with("_cover.jpg"));
     }
 
     #[cfg(feature = "file")]
