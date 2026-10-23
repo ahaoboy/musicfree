@@ -1,84 +1,65 @@
 use thiserror::Error;
 
-#[derive(Error, Debug)]
-pub enum MusicFreeError {
-    #[error("Network request failed: {0}")]
-    NetworkError(#[from] reqwest::Error),
+pub type Result<T> = std::result::Result<T, Error>;
 
-    #[error("Request timeout for URL: {0}")]
-    RequestTimeout(String),
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("network error: {0}")]
+    Network(#[from] reqwest::Error),
 
-    #[error("HTTP error {status} for URL: {url}")]
-    HttpError { status: u16, url: String },
+    #[error("request timed out: {0}")]
+    Timeout(String),
 
-    #[error("Invalid URL format: {0}")]
+    #[error("HTTP {status} for {url}")]
+    Http { status: u16, url: String },
+
+    #[error("invalid URL: {0}")]
     InvalidUrl(String),
 
-    #[error("Unsupported site: {0}")]
-    UnsupportedSite(String),
+    #[error("unsupported URL: {0}")]
+    Unsupported(String),
 
-    #[error("Failed to parse response: {0}")]
-    ParseError(String),
+    #[error("parse error: {0}")]
+    Parse(String),
 
-    #[error("Failed to parse JSON: {0}")]
-    JsonError(#[from] serde_json::Error),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
 
-    #[error("Audio stream not found")]
+    #[error("audio stream not found")]
     AudioNotFound,
 
-    #[error("Video not found or unavailable")]
-    VideoNotFound,
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
 
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    #[error("invalid header value: {0}")]
+    Header(#[from] reqwest::header::InvalidHeaderValue),
 
-    #[error("YouTube extractor failed: {0}")]
-    YoutubeError(String),
+    #[error("cookie error: {0}")]
+    Cookie(#[from] serde_cookie::Error),
 
-    #[error("External command failed: {0}")]
-    CommandError(String),
+    #[error("download failed: {0}")]
+    Download(String),
 
-    #[error("Invalid header value: {0}")]
-    HeaderError(#[from] reqwest::header::InvalidHeaderValue),
+    #[error("JavaScript execution failed: {0}")]
+    Js(String),
 
-    #[error("Failed to parse cookies: {0}")]
-    CookieParseError(#[from] serde_cookie::Error),
+    #[error("cipher error: {0}")]
+    Cipher(String),
 
-    #[error("Download failed: {0}")]
-    DownloadFailed(String),
-
-    #[error("Extractor not found for URL: {0}")]
-    ExtractorNotFound(String),
-
-    #[error("Platform not supported: {0}")]
-    PlatformNotSupported(String),
-
-    #[error("Failed to extract audio: {0}")]
-    ExtractionFailed(String),
-
-    #[error("Timeout during extraction: {0}")]
-    ExtractionTimeout(String),
-
-    #[error("Invalid response format: {0}")]
-    InvalidResponse(String),
-
-    #[error("Rate limited: {0}")]
-    RateLimited(String),
-
-    #[error("JS decryption failed: {0}")]
-    JsDecryptionFailed(String),
-
-    #[error("Cipher parse error: {0}")]
-    CipherParseError(String),
-
-    #[error("Player.js not found")]
+    #[error("player JavaScript not found")]
     PlayerJsNotFound,
-
-    #[error("Config parse error: {0}")]
-    ConfigParseError(String),
-
-    #[error("Regex error: {0}")]
-    RegexError(#[from] regex::Error),
 }
 
-pub type Result<T> = std::result::Result<T, MusicFreeError>;
+impl Error {
+    pub(crate) fn http(status: reqwest::StatusCode, url: &str) -> Self {
+        Self::Http {
+            status: status.as_u16(),
+            url: url.to_owned(),
+        }
+    }
+
+    pub(crate) fn is_retryable(&self) -> bool {
+        matches!(self, Self::Network(_) | Self::Timeout(_))
+            || matches!(self, Self::Http { status, .. } if matches!(*status, 408 | 429) || (500..600).contains(status))
+    }
+}

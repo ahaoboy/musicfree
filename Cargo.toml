@@ -3,71 +3,51 @@ name = "musicfree"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "musicfree"
+description = "Extract and download audio from Bilibili, YouTube, and direct URLs"
 repository = "https://github.com/ahaoboy/musicfree"
 homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
 [features]
-default = ["cli", "bilibili", "youtube", "qjs"]
+default = ["cli"]
+cli = ["dep:clap", "dep:anyhow"]
 bindgen = ["ytdlp-ejs/bindgen"]
-qjs = ["ytdlp-ejs", "ytdlp-ejs/qjs"]
-boa = ["ytdlp-ejs", "ytdlp-ejs/boa", "dep:icu_normalizer"]
-cli = ["dep:clap"]
-bilibili = []
-youtube = []
-ytdlp-ejs = ["dep:ytdlp-ejs"]
-dev = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# FIXME: ANDROID NOT WORKING WITH REQWEST 0.13
-# reqwest = { version = "0.13", features = [
-#   "json",
-#   "gzip",
-#   "rustls-native-certs",
-#   "cookies",
-# ] }
-reqwest = { version = "0.12", features = [
+reqwest = { version = "0.12", default-features = false, features = [
   "json",
   "rustls-tls",
   "gzip",
+  "brotli",
+  "deflate",
   "cookies",
-], default-features = false }
-
-tokio = { version = "1", features = [
+] }
+tokio = { version = "1", default-features = false, features = [
   "macros",
   "rt-multi-thread",
-  "process",
+  "sync",
   "time",
-], default-features = false }
+] }
 rand = "0.10"
 thiserror = "2"
 regex = "1"
-urlencoding = "2"
-ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, optional = true }
-anyhow = "1"
-async-trait = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
-futures-util = "0.3"
-sanitize-filename = "0.6"
-strum = "0.28"
-strum_macros = "0.28"
-clap = { version = "4", features = ["derive"], optional = true }
 url = "2"
+urlencoding = "2"
 md5 = "0.8"
 abv = "0.3"
-# Shared, serde-powered YouTube parsing (types + parser + URL helpers).
-serde-youtube = { git = "https://github.com/ahaoboy/serde-youtube.git", default-features = false, features = [
-  "client",
-] }
+anyhow = { version = "1", optional = true }
+async-trait = "0.1"
+sanitize-filename = "0.6"
+clap = { version = "4", features = ["derive"], optional = true }
+serde-youtube = { git = "https://github.com/ahaoboy/serde-youtube.git", default-features = false }
 serde-cookie = { git = "https://github.com/ahaoboy/serde-cookie", default-features = false, features = [
   "reqwest",
 ] }
-git-version = "0.3"
-const-str = "1"
-icu_normalizer = { version = "2", optional = true }
+ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, features = [
+  "quickjs-oxide",
+] }
 
 [profile.release]
 debug = false
@@ -80,8 +60,8 @@ codegen-units = 1
 debug = true
 lto = false
 strip = false
-inherits = 'release'
+inherits = "release"
 
 [[bin]]
-required-features = ["cli"]
 name = "musicfree"
+required-features = ["cli"]
