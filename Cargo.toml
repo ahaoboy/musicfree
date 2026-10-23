@@ -9,9 +9,13 @@ homepage = "https://github.com/ahaoboy/musicfree"
 authors = ["ahaoboy"]
 
 [features]
-default = ["cli"]
-cli = ["dep:clap", "dep:anyhow"]
-bindgen = ["ytdlp-ejs/bindgen"]
+default = ["cli", "sites"]
+sites = ["bilibili", "youtube", "file"]
+bilibili = ["dep:abv", "dep:url"]
+youtube = ["dep:regex", "dep:serde-youtube", "dep:url", "dep:ytdlp-ejs"]
+file = ["dep:md5", "dep:url", "dep:urlencoding"]
+cli = ["dep:anyhow", "dep:clap", "dep:sanitize-filename"]
+bindgen = ["dep:ytdlp-ejs", "ytdlp-ejs/bindgen"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -32,22 +36,22 @@ tokio = { version = "1", default-features = false, features = [
 ] }
 rand = "0.10"
 thiserror = "2"
-regex = "1"
-url = "2"
-urlencoding = "2"
-md5 = "0.8"
-abv = "0.3"
+regex = { version = "1", optional = true }
+url = { version = "2", optional = true }
+urlencoding = { version = "2", optional = true }
+md5 = { version = "0.8", optional = true }
+abv = { version = "0.3", optional = true }
 anyhow = { version = "1", optional = true }
 async-trait = "0.1"
-sanitize-filename = "0.6"
+sanitize-filename = { version = "0.6", optional = true }
 clap = { version = "4", features = ["derive"], optional = true }
-serde-youtube = { git = "https://github.com/ahaoboy/serde-youtube.git", default-features = false }
+serde-youtube = { git = "https://github.com/ahaoboy/serde-youtube.git", default-features = false, optional = true }
 serde-cookie = { git = "https://github.com/ahaoboy/serde-cookie", default-features = false, features = [
   "reqwest",
 ] }
 ytdlp-ejs = { version = "0.1", git = "https://github.com/ahaoboy/ytdlp-ejs", default-features = false, features = [
   "quickjs-oxide",
-] }
+], optional = true }
 
 [profile.release]
 debug = false
@@ -64,4 +68,4 @@ inherits = "release"
 
 [[bin]]
 name = "musicfree"
-required-features = ["cli"]
+required-features = ["cli", "sites"]

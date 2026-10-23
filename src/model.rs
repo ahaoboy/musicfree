@@ -5,18 +5,33 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Site {
+    #[cfg(feature = "bilibili")]
     Bilibili,
+    #[cfg(feature = "youtube")]
     Youtube,
+    #[cfg(feature = "file")]
     File,
 }
 
 impl fmt::Display for Site {
+    #[cfg_attr(
+        not(any(feature = "bilibili", feature = "youtube", feature = "file")),
+        allow(unused_variables)
+    )]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Bilibili => "bilibili",
-            Self::Youtube => "youtube",
-            Self::File => "file",
-        })
+        #[cfg(any(feature = "bilibili", feature = "youtube", feature = "file"))]
+        {
+            f.write_str(match *self {
+                #[cfg(feature = "bilibili")]
+                Self::Bilibili => "bilibili",
+                #[cfg(feature = "youtube")]
+                Self::Youtube => "youtube",
+                #[cfg(feature = "file")]
+                Self::File => "file",
+            })
+        }
+        #[cfg(not(any(feature = "bilibili", feature = "youtube", feature = "file")))]
+        match *self {}
     }
 }
 

@@ -1,7 +1,7 @@
-use crate::{
-    Site, Track,
-    sites::{self, youtube},
-};
+use super::YoutubeMode;
+#[cfg(feature = "youtube")]
+use crate::{Site, sites::youtube};
+use crate::{Track, sites};
 use anyhow::{Context, Result};
 use std::{
     fs,
@@ -12,7 +12,7 @@ pub async fn download(
     track: &Track,
     dir: Option<&Path>,
     output: Option<&Path>,
-    mode: youtube::Mode,
+    mode: YoutubeMode,
 ) -> Result<()> {
     let path = directory(dir).join(audio_name(track, output));
     if path.exists() {
@@ -20,11 +20,22 @@ pub async fn download(
         return Ok(());
     }
 
-    let data = match track.site {
-        Site::Youtube => youtube::download(&track.url, mode).await,
-        _ => sites::extractor(track.site).download(&track.url).await,
+    #[cfg(not(feature = "youtube"))]
+    let _ = mode;
+
+    #[cfg(feature = "youtube")]
+    let data = if matches!(track.site, Site::Youtube) {
+        youtube::download(&track.url, mode.into()).await
+    } else {
+        sites::extractor(track.site).download(&track.url).await
     }
     .with_context(|| format!("download {}", track.title))?;
+
+    #[cfg(not(feature = "youtube"))]
+    let data = sites::extractor(track.site)
+        .download(&track.url)
+        .await
+        .with_context(|| format!("download {}", track.title))?;
 
     write(&path, data)?;
     println!("✓ Saved to: {}", path.display());

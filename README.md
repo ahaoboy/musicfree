@@ -48,6 +48,30 @@ musicfree --web    "https://www.youtube.com/watch?v=BnnbP7pCIvQ" # web API + EJS
 `--web` falls back through the clients that currently expose direct URLs when the
 desktop WEB client only returns SABR metadata.
 
+## Cargo features
+
+Sites are independent features. The default includes the CLI and every site, while
+library users can compile only the sources they need:
+
+```bash
+# Only YouTube + CLI
+cargo build --no-default-features --features cli,youtube
+
+# Only Bilibili + YouTube (library, no CLI)
+cargo build --no-default-features --features bilibili,youtube
+
+# Only direct file URLs
+cargo build --no-default-features --features cli,file
+```
+
+- `sites` = `bilibili` + `youtube` + `file`
+- `bilibili`, `youtube`, `file` — individual site support
+- `cli` — the `musicfree` binary and its CLI dependencies
+- `bindgen` — enables bindgen for the QuickJS runtime used by YouTube
+
+Site-specific dependencies (`abv`, `serde-youtube`, `ytdlp-ejs`, `md5`, etc.) are
+optional and enabled only by the corresponding site feature.
+
 ## Library layout
 
 - `src/model.rs` — `Site`, `AudioFormat`, `Track`, `Playlist`
@@ -58,8 +82,9 @@ desktop WEB client only returns SABR metadata.
   - `file.rs` — direct HTTP(S) audio URLs
 - `src/cli/` — argument parsing, output, selection, file writing
 
-Adding a source means adding a module under `src/sites/`, implementing
-`Extractor`, and registering it in `src/sites/mod.rs`.
+Adding a source means adding a Cargo feature, a module under `src/sites/`,
+implementing `Extractor`, and registering the feature-gated module/variant in
+`src/sites/mod.rs`, `src/model.rs`, and `src/lib.rs`.
 
 ## Acknowledgments
 

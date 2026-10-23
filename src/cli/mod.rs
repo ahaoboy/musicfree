@@ -2,7 +2,7 @@ mod files;
 mod output;
 mod selection;
 
-use crate::{AudioFormat, Playlist, extract, http, sites::youtube::Mode as YoutubeMode};
+use crate::{AudioFormat, Playlist, extract, http};
 use anyhow::{Result, bail};
 use clap::Parser;
 use std::path::PathBuf;
@@ -11,9 +11,8 @@ use std::path::PathBuf;
 #[command(
     name = "musicfree",
     version,
-    about = "Download audio from Bilibili, YouTube, or direct URLs",
-    long_about = "Extract and download audio tracks. YouTube supports multiple \
-                  download strategies for debugging."
+    about = "Download audio from the enabled sources",
+    long_about = "Extract and download audio tracks from the sources enabled at build time."
 )]
 struct Args {
     /// URL or site ID to extract audio from
@@ -56,25 +55,56 @@ struct Args {
     cookies: Option<PathBuf>,
 
     /// YouTube: try mobile first, then web (default)
+    #[cfg(feature = "youtube")]
     #[arg(long, group = "youtube-mode")]
     auto: bool,
 
     /// YouTube: use the web player API and EJS challenge solving
+    #[cfg(feature = "youtube")]
     #[arg(long, group = "youtube-mode")]
     web: bool,
 
     /// YouTube: use the mobile (Android) player API
+    #[cfg(feature = "youtube")]
     #[arg(long, group = "youtube-mode")]
     mobile: bool,
 }
 
+/// YouTube strategy selected by the CLI, independent of the optional site.
+#[derive(Debug, Clone, Copy, Default)]
+enum YoutubeMode {
+    #[default]
+    Auto,
+    #[cfg(feature = "youtube")]
+    Web,
+    #[cfg(feature = "youtube")]
+    Mobile,
+}
+
+#[cfg(feature = "youtube")]
+impl From<YoutubeMode> for crate::sites::youtube::Mode {
+    fn from(mode: YoutubeMode) -> Self {
+        match mode {
+            YoutubeMode::Auto => Self::Auto,
+            YoutubeMode::Web => Self::Web,
+            YoutubeMode::Mobile => Self::Mobile,
+        }
+    }
+}
+
 impl Args {
+    #[cfg(feature = "youtube")]
     fn youtube_mode(&self) -> YoutubeMode {
         match (self.auto, self.web, self.mobile) {
             (_, true, _) => YoutubeMode::Web,
             (_, _, true) => YoutubeMode::Mobile,
             _ => YoutubeMode::Auto,
         }
+    }
+
+    #[cfg(not(feature = "youtube"))]
+    fn youtube_mode(&self) -> YoutubeMode {
+        YoutubeMode::Auto
     }
 
     fn output_name(&self, playlist: &Playlist) -> Option<&std::path::Path> {
